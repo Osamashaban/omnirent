@@ -29,44 +29,6 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ---------------------------------------------------------------------------
-// HealthCheck
-//
-// A deliberately trivial table. It exists only so the deployed application can
-// prove it is able to reach its database — it holds no product data and nothing
-// depends on it.
-//
-// DELETE THIS MODEL (and the status page in app/page.tsx) once the first real
-// feature ships. Removing it needs its own migration.
-// ---------------------------------------------------------------------------
-model HealthCheck {
-  // Unique identifier for the row, generated automatically.
-  id String @id @default(cuid())
-
-  // Free-text note, so a row can say why it was created.
-  note String
-
-  // When the row was created. Filled in automatically.
-  createdAt DateTime @default(now())
-}
-
-// ---------------------------------------------------------------------------
-// ScratchNote
-//
-// A throwaway table, added to prove that a schema change travels the whole way
-// from this file to a running preview deployment. It holds no product data and
-// nothing depends on it.
-//
-// DELETE THIS MODEL (and the matching row on the status page in app/page.tsx)
-// once that has been demonstrated. Removing it needs its own migration.
-// ---------------------------------------------------------------------------
-model ScratchNote {
-  // Unique identifier for the row, generated automatically.
-  id String @id @default(cuid())
-
-  // Free-text label, so a row can say what it was testing.
-  label String
-
-  // When the row was created. Filled in automatically.
-  createdAt DateTime @default(now())
-}
+// No models yet. The temporary HealthCheck and ScratchNote tables that proved
+// the deployment pipeline were removed once it was working; the first real
+// model belongs here.

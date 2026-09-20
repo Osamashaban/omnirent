@@ -89,10 +89,17 @@ test("every model in the schema is created by a migration", () => {
   );
 });
 
-test("the schema declares at least one model and at least one migration exists", () => {
-  // Without this, the check above would pass trivially if the schema could not
-  // be parsed or the migrations directory went missing.
-  assert.ok(declaredModels().size > 0, "no models were parsed out of prisma/schema.prisma");
+test("at least one migration exists", () => {
+  // Without this, the check above would pass trivially if the migrations
+  // directory went missing entirely.
+  //
+  // This deliberately does not also require at least one model. It did until
+  // the temporary tables were removed, at which point the schema legitimately
+  // declared none and the assertion became wrong rather than protective. The
+  // job it was doing — proving the model parser still works, so an empty
+  // result means "no models" and not "parser broken" — is done by the test
+  // below, against a fixed sample that does not depend on what the schema
+  // happens to contain today.
   assert.ok(migrationSqlFiles().length > 0, "no migration.sql files were found");
 });
 

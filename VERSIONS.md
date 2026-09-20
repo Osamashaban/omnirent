@@ -19,6 +19,25 @@ descriptions are: the person reading this does not read code.
 
 ---
 
+## 0.003 — 2026-09-20 21:13 UTC
+
+Cleared out the temporary scaffolding now that the pipeline from a code change
+to a running site is working. The two throwaway tables used to prove it, and
+all five test rows in them, were deleted from both the live database and the
+one used for testing. The temporary status page that reported on them is gone
+too, replaced by a plain placeholder.
+
+Visible change: the site's front page no longer shows the list of green and
+yellow status rows. It now shows the project name and a line saying nothing has
+shipped yet. That is the expected result, not a fault.
+
+The databases are now empty of application data, ready for the first real
+table.
+
+Commit: `pending`
+
+---
+
 ## 0.002 — 2026-09-20 21:03 UTC
 
 Corrected how versions are recorded. The list originally said each version
@@ -28,7 +47,7 @@ identifier instead. It pins the exact code just as precisely.
 
 Nothing about the running application changed.
 
-Commit: `pending`
+Commit: `03883ac`
 
 ---
 

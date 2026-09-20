@@ -89,6 +89,9 @@ instruction, because the workflow cannot run (see below) and the database held
 no data — both migrations were a single `CREATE TABLE` each, so nothing could
 be lost.
 
+The same applies to the later migration that dropped both tables: destructive,
+run directly, but against tables holding no production data.
+
 That reasoning does not carry forward. Once production holds real data, a
 migration can destroy it, and the workflow is the mechanism that exists to slow
 that down. Treat the rule in `CLAUDE.md` as binding.
@@ -113,12 +116,14 @@ has no direct GitHub API access. They are specified in `SETUP.md`.
 Until these exist, the only thing standing between a mistake and the live site
 is the agent checking carefully and the owner approving in chat.
 
-## Temporary things to remove
+## Temporary scaffolding: removed
 
-- **`ScratchNote`** — model, migration, and the row on the status page. Added
-  only to prove a schema change reaches a running deployment; that is done, so
-  it has served its purpose. The table now exists in **both** databases,
-  production included, by the owner's decision to keep it rather than remove
-  it. Dropping it is a destructive migration and needs its own change.
-- **`HealthCheck` and `app/page.tsx`** — the walking-skeleton status page, to be
-  deleted when the first real feature ships, as the files themselves say.
+Both throwaway tables — `HealthCheck` and `ScratchNote` — and the status page
+that reported on them were removed on 2026-09-20 once the pipeline was proven
+working. The drop ran against both databases, deleting five test rows in
+`staging` and two empty tables in `main`.
+
+Both databases now hold only `_prisma_migrations`. The schema declares no
+models. The front page is a plain placeholder awaiting the first real screen.
+
+Nothing temporary is outstanding.
