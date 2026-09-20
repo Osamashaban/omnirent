@@ -3,6 +3,12 @@
 This file is the rulebook for any agent working in this repository. Read it
 before making changes, and follow it even when a shortcut would be faster.
 
+Then read `PROJECT-STATE.md`. This file says how to work; that one says what
+has actually been set up, what was decided and why, and what is still
+unfinished — including the link to the design, once one exists. Conversations
+do not survive between sessions, so anything agreed in a chat and not written
+there is gone. Keep it current as you work.
+
 ## Who reviews this work, and what that means for you
 
 The owner of this project is a product manager. He does not read code. He
