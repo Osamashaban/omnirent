@@ -72,12 +72,12 @@ executed through the connector, with a matching row written into
 `_prisma_migrations` using the migration file's real SHA-256. A wrong checksum
 is worse than no row, because Prisma then refuses with a mismatch error.
 
-**Production was migrated once, directly, outside the approval workflow.** On
-2026-09-20 the initial migration was applied straight to Neon `main` rather
-than through `.github/workflows/migrate-production.yml`, at the owner's
-explicit instruction, because the workflow could not run (see below) and the
-database was verified empty beforehand — zero tables, zero rows, and the
-migration was a single `CREATE TABLE`, so nothing could be lost.
+**Production has been migrated directly, outside the approval workflow.** On
+2026-09-20 both migrations were applied straight to Neon `main` rather than
+through `.github/workflows/migrate-production.yml`, at the owner's explicit
+instruction, because the workflow cannot run (see below) and the database held
+no data — both migrations were a single `CREATE TABLE` each, so nothing could
+be lost.
 
 That reasoning does not carry forward. Once production holds real data, a
 migration can destroy it, and the workflow is the mechanism that exists to slow
@@ -106,8 +106,9 @@ is the agent checking carefully and the owner approving in chat.
 ## Temporary things to remove
 
 - **`ScratchNote`** — model, migration, and the row on the status page. Added
-  only to prove a schema change reaches a running deployment. It is on `main`
-  and will be created in production the next time a migration runs there.
-  Removing it needs its own migration.
+  only to prove a schema change reaches a running deployment; that is done, so
+  it has served its purpose. The table now exists in **both** databases,
+  production included, by the owner's decision to keep it rather than remove
+  it. Dropping it is a destructive migration and needs its own change.
 - **`HealthCheck` and `app/page.tsx`** — the walking-skeleton status page, to be
   deleted when the first real feature ships, as the files themselves say.
