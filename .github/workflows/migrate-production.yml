@@ -1,0 +1,59 @@
+# ---------------------------------------------------------------------------
+# Applies pending database migrations to the PRODUCTION database.
+#
+# This is deliberately manual and deliberately awkward. Applying a migration
+# can permanently destroy real customer data, and unlike code, it cannot be
+# rolled back by redeploying the previous version. So it never runs as part of
+# an ordinary merge or deploy: a human starts it, types a confirmation phrase,
+# and (via the `production` environment) approves it.
+#
+# How to run it: GitHub -> Actions -> "Migrate production database" ->
+# "Run workflow" -> type `apply to production` -> approve the run.
+# ---------------------------------------------------------------------------
+name: Migrate production database
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type "apply to production" to confirm. Anything else fails the run.'
+        required: true
+        type: string
+
+jobs:
+  migrate:
+    name: Apply migrations to production
+    runs-on: ubuntu-latest
+
+    # Requires approval from the reviewers configured on this GitHub
+    # environment before any step runs. See SETUP.md.
+    environment: production
+
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.PRODUCTION_DIRECT_URL }}
+
+    steps:
+      - name: Check the confirmation phrase
+        if: ${{ inputs.confirmation != 'apply to production' }}
+        run: |
+          echo "Confirmation phrase did not match. Expected exactly: apply to production"
+          exit 1
+
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Show which migrations are pending
+        run: npx prisma migrate status
+
+      - name: Apply pending migrations
+        run: npx prisma migrate deploy

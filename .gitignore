@@ -1,0 +1,35 @@
+# Dependencies
+/node_modules
+
+# Next.js build output
+/.next
+/out
+next-env.d.ts
+
+# Production
+/build
+
+# Local environment files — never commit real credentials.
+# Only .env.example (placeholders) belongs in git.
+.env
+.env.local
+.env.*.local
+
+# Prisma generated client
+/prisma/generated
+
+# Logs and OS cruft
+npm-debug.log*
+yarn-error.log*
+.DS_Store
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo

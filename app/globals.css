@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+/* Design tokens. Light values are the default; the dark block below swaps them
+   when the visitor's operating system is set to dark mode. */
+:root {
+  --background: #ffffff;
+  --foreground: #16181d;
+  --muted: #6b7280;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --ok: #0f7b3f;
+  --warn: #a15c00;
+  --error: #b42318;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b0d10;
+    --foreground: #e8eaed;
+    --muted: #9aa1ab;
+    --card: #14171c;
+    --border: #262b33;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --error: #f87171;
+  }
+}
+
+/* Make the tokens available to Tailwind utilities such as `bg-background`. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-error: var(--error);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
