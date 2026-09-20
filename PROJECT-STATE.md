@@ -62,8 +62,12 @@ pull request description and the preview deployment are the whole review.
 **Every merge to `main` gets a version.** Numbering began at `0.001` on
 2026-09-20 and goes up by one thousandth per merge. Before merging, add an
 entry to `VERSIONS.md` — number, UTC timestamp, and what changed in product
-language — and after merging, tag the merge commit (`v0.001`) and push the
-tag. The number is only an ordering; it is not semantic versioning.
+language — and record the resulting merge commit in that entry afterwards. The
+number is only an ordering; it is not semantic versioning.
+
+Git tags are not used: pushing a tag from here is refused with a 403 and no
+tool in the GitHub set creates tags or releases. The commit identifier serves
+the same purpose. Do not retry tagging.
 
 ## Decisions worth not relitigating
 
