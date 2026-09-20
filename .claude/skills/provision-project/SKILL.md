@@ -115,6 +115,21 @@ Report each of these in the summary, but do not ask first.
 9. **Report** the region, project and branch IDs, the four-row table, what was
    applied where, and anything left undone.
 
+## Check the deployment target on the first push
+
+The first deployment of a newly linked Vercel project can land on
+`target: production` even when it came from a feature branch, taking the
+production URL with it. That bypasses any review rule the repo has, and it
+means the deployment reads production environment variables — so a health
+check will report missing tables when production has not been migrated.
+
+After the first push, read the deployment and check `target`. If a
+feature-branch push produced a production deployment, confirm whether later
+pushes settle into `preview`. If they do not, the project's Production Branch
+setting is wrong, and it is **not** fixable from here — no Vercel MCP tool
+exposes it. It lives in the dashboard under Settings → Git, and the user has
+to set it to the repository's default branch.
+
 ## Gates — stop and ask
 
 **Overwriting an environment variable that already holds a value.** Adding a
