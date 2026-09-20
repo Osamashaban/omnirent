@@ -59,6 +59,12 @@ This puts real weight on the agent: run `npm run typecheck`, `npm run lint`,
 product language. The owner is a product manager and does not read code — the
 pull request description and the preview deployment are the whole review.
 
+**Every merge to `main` gets a version.** Numbering began at `0.001` on
+2026-09-20 and goes up by one thousandth per merge. Before merging, add an
+entry to `VERSIONS.md` — number, UTC timestamp, and what changed in product
+language — and after merging, tag the merge commit (`v0.001`) and push the
+tag. The number is only an ordering; it is not semantic versioning.
+
 ## Decisions worth not relitigating
 
 **Preview links are public.** Vercel SSO protection was deliberately turned off
