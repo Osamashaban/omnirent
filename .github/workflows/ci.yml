@@ -1,0 +1,53 @@
+# Runs on every pull request and every push to main. If this is red, the change
+# is not ready — nobody reads the diff line by line, so these checks are the
+# safety net.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, lint, test, build
+    runs-on: ubuntu-latest
+
+    env:
+      # Placeholder connection strings. Nothing in CI talks to a real database:
+      # these exist only because `next build` and `prisma generate` insist on
+      # the variables being present. They are not secrets.
+      DATABASE_URL: postgresql://user:password@localhost:5432/placeholder?sslmode=disable
+      DIRECT_URL: postgresql://user:password@localhost:5432/placeholder?sslmode=disable
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate the Prisma client
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

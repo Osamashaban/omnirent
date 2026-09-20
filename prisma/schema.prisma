@@ -1,0 +1,51 @@
+// ---------------------------------------------------------------------------
+// OmniRent database schema
+//
+// This file is the single description of what the database looks like. Nothing
+// changes the real database except a migration file generated from this file
+// (see prisma/migrations/). Editing this file alone changes nothing until a
+// migration is created and applied.
+//
+// Rule of thumb for reading it: `model` = one table, each line inside a model
+// = one column, and `@` markers are rules about that column.
+// ---------------------------------------------------------------------------
+
+// Where Prisma writes the generated database client the application code uses.
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Which database we talk to, and how.
+datasource db {
+  provider = "postgresql"
+
+  // The everyday connection, shared through Neon's connection pooler. This is
+  // what the running application uses to read and write data.
+  url = env("DATABASE_URL")
+
+  // A direct, non-pooled connection to the same database. Neon requires this
+  // for schema migrations, because a pooler cannot safely run the kind of
+  // statements that change table structure.
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// HealthCheck
+//
+// A deliberately trivial table. It exists only so the deployed application can
+// prove it is able to reach its database — it holds no product data and nothing
+// depends on it.
+//
+// DELETE THIS MODEL (and the status page in app/page.tsx) once the first real
+// feature ships. Removing it needs its own migration.
+// ---------------------------------------------------------------------------
+model HealthCheck {
+  // Unique identifier for the row, generated automatically.
+  id String @id @default(cuid())
+
+  // Free-text note, so a row can say why it was created.
+  note String
+
+  // When the row was created. Filled in automatically.
+  createdAt DateTime @default(now())
+}
