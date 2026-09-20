@@ -62,6 +62,39 @@ async function checkDatabase(): Promise<DatabaseStatus> {
   }
 }
 
+/**
+ * Reports whether the throwaway ScratchNote table has reached this database.
+ *
+ * This exists to show a schema change arriving in a deployed environment: the
+ * table is created by a migration, so a deployment that has not had that
+ * migration applied says so instead of counting rows.
+ *
+ * DELETE THIS (and the ScratchNote model) once that has been demonstrated.
+ */
+async function checkScratchNote(): Promise<DatabaseStatus> {
+  if (!process.env.DATABASE_URL) {
+    return { state: "warning", detail: "Not checked — no database configured" };
+  }
+
+  const { prisma } = await import("@/lib/db");
+
+  try {
+    const rows = await prisma.scratchNote.count();
+    return {
+      state: "ok",
+      detail: `Present — ${rows} ${rows === 1 ? "row" : "rows"}`,
+    };
+  } catch (error) {
+    if (isMissingTable(error)) {
+      return {
+        state: "warning",
+        detail: "Missing — the migration that creates it has not reached this database",
+      };
+    }
+    return { state: "error", detail: `Query failed — ${summarize(error)}` };
+  }
+}
+
 /** Postgres reports an unknown table as SQLSTATE 42P01; Prisma wraps it as P2021. */
 function isMissingTable(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -123,6 +156,7 @@ function StatusRow({
 
 export default async function Home() {
   const database = await checkDatabase();
+  const scratchNote = await checkScratchNote();
 
   const environment = process.env.VERCEL_ENV ?? "local development";
   const fullCommit = process.env.VERCEL_GIT_COMMIT_SHA;
@@ -140,6 +174,7 @@ export default async function Home() {
         <StatusRow label="Environment" value={environment} state="ok" />
         <StatusRow label="Commit" value={commit} state={fullCommit ? "ok" : "warning"} />
         <StatusRow label="Database" value={database.detail} state={database.state} />
+        <StatusRow label="ScratchNote table" value={scratchNote.detail} state={scratchNote.state} />
       </ul>
 
       <p className="mt-6 text-xs text-[color:var(--color-muted)]">
