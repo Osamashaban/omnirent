@@ -19,6 +19,18 @@ descriptions are: the person reading this does not read code.
 
 ---
 
+## 0.004 — 2026-10-03 11:17 UTC
+
+Filled in a missing detail in this version list: the entry for 0.003 still
+said its change identifier was "pending". It now records the real one, so the
+exact code behind 0.003 can be recovered.
+
+Nothing about the running application changed.
+
+Commit: `pending`
+
+---
+
 ## 0.003 — 2026-09-20 21:13 UTC
 
 Cleared out the temporary scaffolding now that the pipeline from a code change
@@ -34,7 +46,7 @@ shipped yet. That is the expected result, not a fault.
 The databases are now empty of application data, ready for the first real
 table.
 
-Commit: `pending`
+Commit: `b0bb0ca`
 
 ---
 
