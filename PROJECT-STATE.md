@@ -24,6 +24,7 @@ Last updated: 2026-09-20.
 | Live site | https://omnirent-sooty.vercel.app |
 | Vendor dashboard | https://app.getomnirent.com (coming-soon page) |
 | Operations dashboard | https://ops.getomnirent.com (coming-soon page; `?site=ops` shows it on any link) |
+| Staging | https://app.staging.getomnirent.com and https://ops.staging.getomnirent.com, serving the `staging` git branch (Neon `staging` database). Push a feature branch to `staging` for the owner to review it there before merging to `main`. |
 
 Frankfurt was chosen because Neon offers no Middle East region and it is the
 closest to Riyadh and Cairo, where the app will be used.
