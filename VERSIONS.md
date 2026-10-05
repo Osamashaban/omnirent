@@ -19,6 +19,18 @@ descriptions are: the person reading this does not read code.
 
 ---
 
+## 0.005 — pending
+
+Each web address now shows its own "coming soon" page in the Omnirent brand:
+app.getomnirent.com says the Omnirent Vendor dashboard is coming soon, and
+ops.getomnirent.com says the Omnirent Operation dashboard is coming soon. Both
+pages carry the logo, the brand green and a short description in English and
+Arabic.
+
+Commit: `pending`
+
+---
+
 ## 0.004 — 2026-10-03 11:17 UTC
 
 Filled in a missing detail in this version list: the entry for 0.003 still
