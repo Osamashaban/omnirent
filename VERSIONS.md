@@ -19,7 +19,7 @@ descriptions are: the person reading this does not read code.
 
 ---
 
-## 0.005 — pending
+## 0.005 — 2026-10-05 15:09 UTC
 
 Each web address now shows its own "coming soon" page in the Omnirent brand:
 app.getomnirent.com says the Omnirent Vendor dashboard is coming soon, and
