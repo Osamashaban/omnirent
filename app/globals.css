@@ -1,47 +1,36 @@
 @import "tailwindcss";
 
-/* Design tokens. Light values are the default; the dark block below swaps them
-   when the visitor's operating system is set to dark mode. */
+/* Product tokens from the Omnirent design system
+   (https://claude.ai/artifact/K4f96mUX1D9v9yx4MVwxpR). The product surface is
+   light only, so there is no dark-mode block. */
 :root {
-  --background: #ffffff;
-  --foreground: #16181d;
-  --muted: #6b7280;
-  --card: #ffffff;
-  --border: #e5e7eb;
-  --ok: #0f7b3f;
-  --warn: #a15c00;
-  --error: #b42318;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b0d10;
-    --foreground: #e8eaed;
-    --muted: #9aa1ab;
-    --card: #14171c;
-    --border: #262b33;
-    --ok: #4ade80;
-    --warn: #fbbf24;
-    --error: #f87171;
-  }
-}
-
-/* Make the tokens available to Tailwind utilities such as `bg-background`. */
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-card: var(--card);
-  --color-border: var(--border);
-  --color-ok: var(--ok);
-  --color-warn: var(--warn);
-  --color-error: var(--error);
+  --p-primary: #639922;
+  --p-primary-dark: #4e8f20;
+  --omni-primary-dark: #27500a;
+  --surface-0: #ffffff;
+  --surface-50: #f9fafb;
+  --surface-200: #e5e7eb;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
-    sans-serif;
+  background: var(--surface-50);
+  color: var(--text-primary);
+  font-family: var(--font-outfit), var(--font-plex-arabic), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Soft brand-green glow behind the coming-soon card. */
+.glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(600px circle at 50% 0%, rgba(99, 153, 34, 0.18), transparent 70%),
+    radial-gradient(#e5e7eb 1px, transparent 1px);
+  background-size: auto, 28px 28px;
 }

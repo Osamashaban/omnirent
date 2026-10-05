@@ -22,6 +22,9 @@ Last updated: 2026-09-20.
 | Production database | Neon branch `main` |
 | Preview / local database | Neon branch `staging` |
 | Live site | https://omnirent-sooty.vercel.app |
+| Vendor dashboard | https://app.getomnirent.com (coming-soon page) |
+| Operations dashboard | https://ops.getomnirent.com (coming-soon page; `?site=ops` shows it on any link) |
+| Staging | https://app.staging.getomnirent.com and https://ops.staging.getomnirent.com, serving the `staging` git branch (Neon `staging` database). Push a feature branch to `staging` for the owner to review it there before merging to `main`. |
 
 Frankfurt was chosen because Neon offers no Middle East region and it is the
 closest to Riyadh and Cairo, where the app will be used.
@@ -31,7 +34,7 @@ exists, record its URL here** — an agent can read an artifact directly from it
 link, so the artifact replaces any written description of the design. Without
 the link recorded, a new session does not know it exists.
 
-- Design system: _not created yet_
+- Design system: https://claude.ai/artifact/K4f96mUX1D9v9yx4MVwxpR (tokens, brand book, logos)
 - Design screens: _not created yet_
 
 ## How environments are separated
