@@ -8,7 +8,7 @@ not written here is lost.
 Keep it current. It is a running record, not a document written once at the
 end. Correct it when reality changes rather than appending to it.
 
-Last updated: 2026-09-20.
+Last updated: 2026-10-05.
 
 ---
 
@@ -31,8 +31,54 @@ exists, record its URL here** — an agent can read an artifact directly from it
 link, so the artifact replaces any written description of the design. Without
 the link recorded, a new session does not know it exists.
 
-- Design system: _not created yet_
+- Design system: https://claude.ai/artifact/K4f96mUX1D9v9yx4MVwxpR
+  ("Omnirent Design System", 2026-10-03). Not applied to any screen yet — the
+  front page is still the placeholder.
 - Design screens: _not created yet_
+
+## What OmniRent is, and the plan
+
+OmniRent is a **channel manager** for short-term rental hosts. A host keeps one
+master calendar here; OmniRent mirrors availability, prices and restrictions out
+to Booking.com, Airbnb and Hostelworld, and pulls their bookings back in. A
+booking on one channel closes those dates on the others.
+
+The plan — core data model, sync architecture, channel-by-channel constraints and
+a seven-phase rollout — is a Claude doc:
+
+**https://claude.ai/code/artifact/37de8919-b059-44ac-8b18-1a5dbbc307bb**
+("Omnirent: Core Data Model and First Channel Integrations", 2026-10-03)
+
+Read it before starting feature work. It is the only description of the product;
+this repository deliberately does not duplicate it, so the two cannot drift.
+
+Phase order from that doc:
+
+1. **Foundations** — sign-in, organizations, roles
+2. **Properties and calendar** — properties, room types, rate plans, a 12-month
+   availability and price calendar. Usable product, no channels yet.
+3. **Sync engine** — `SyncJob` outbox, `WebhookEvent` inbox, background worker,
+   nightly resync, per-property sync-health page
+4. **Booking.com** via the aggregator
+5. **Airbnb** via the aggregator
+6. **Hostelworld** via the aggregator — bed-level dorm inventory, 14-night cap
+7. **Direct Booking.com** connection, as a second adapter behind the same
+   `ChannelConnection`
+
+The route to all three channels at launch is the Channex aggregator, because
+Airbnb's API is invite-only and cannot be scheduled by a new company.
+
+Two of the four open questions in that doc change what gets built, and are still
+unanswered: **which customers come first** (hostels need Hostelworld and
+bed-level inventory early; apartment owners need Airbnb first — this reorders
+phases 5 and 6), and **whether OmniRent ever takes payments** (the plan assumes
+not: channels collect, OmniRent records). Do not guess at either.
+
+Phase 1 of that plan also says the three open safety items below must be closed
+before any real host data is stored. They are all still open.
+
+Sign-in means an authentication provider, which is not in the stack list in
+`CLAUDE.md` and so is the owner's decision. Nothing has been chosen yet.
 
 ## How environments are separated
 
