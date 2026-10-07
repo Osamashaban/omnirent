@@ -35,10 +35,11 @@ datasource db {
 // Every person who signs in is a User. Every User has exactly one Role. What a
 // Role may use is decided feature by feature: Feature is the list of every
 // part of the system, and RoleFeature records "this role may use this feature".
+// A role can use exactly the features it has rows for, and nothing else.
 //
-// A Role marked isSuperAdmin skips that list entirely and may use everything,
-// including features added after the role was created. The access check in
-// lib/access.ts is the one place that rule lives.
+// Every role works the same way, Super Admin included. Super Admin simply has
+// a row for every feature: each migration that adds a feature also grants it
+// to Super Admin (a test enforces this).
 // ---------------------------------------------------------------------------
 
 model User {
@@ -61,9 +62,6 @@ model User {
 model Role {
   id   String @id @default(cuid())
   name String @unique
-
-  // True only for Super Admin: access to every feature, present and future.
-  isSuperAdmin Boolean @default(false)
 
   users    User[]
   features RoleFeature[]

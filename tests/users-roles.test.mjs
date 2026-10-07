@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
 // Sign-in accounts and who may use what.
 //
-// These pin three promises: passwords are never stored as typed, Super Admin
-// can use every feature (including ones added later), and every other role can
-// use only what it was granted.
+// These pin three promises: passwords are never stored as typed, a role can
+// use only the features it was granted, and Super Admin is granted every
+// feature, including ones added by later migrations.
 // ---------------------------------------------------------------------------
 
 import { strict as assert } from "node:assert";
@@ -40,18 +40,12 @@ test("a damaged stored value refuses every password instead of crashing", async 
   }
 });
 
-test("Super Admin can use every feature, including ones that do not exist yet", () => {
-  const superAdmin = { isSuperAdmin: true, featureKeys: [] };
-  for (const feature of FEATURES) assert.equal(canAccess(superAdmin, feature.key), true);
-  assert.equal(canAccess(superAdmin, "a_feature_added_next_year"), true);
-});
-
-test("any other role can use only the features it was granted", () => {
-  const role = { isSuperAdmin: false, featureKeys: ["vendor_dashboard"] };
+test("a role can use only the features it was granted", () => {
+  const role = { featureKeys: ["vendor_dashboard"] };
   assert.equal(canAccess(role, "vendor_dashboard"), true);
   assert.equal(canAccess(role, "ops_dashboard"), false);
   assert.equal(canAccess(role, "users_roles"), false);
-  assert.equal(canAccess({ isSuperAdmin: false, featureKeys: [] }, "vendor_dashboard"), false);
+  assert.equal(canAccess({ featureKeys: [] }, "vendor_dashboard"), false);
 });
 
 test("no role means no access", () => {
@@ -66,8 +60,22 @@ test("migrations create the Super Admin role and every feature the code knows ab
     .map((entry) => readFileSync(join(dir, entry.name, "migration.sql"), "utf8"))
     .join("\n");
 
-  assert.match(sql, /INSERT INTO "Role"[^;]*'Super Admin',\s*true/);
+  assert.match(sql, /INSERT INTO "Role"[^;]*'Super Admin'/);
   const missing = FEATURES.filter((feature) => !sql.includes(`'${feature.key}'`)).map((feature) => feature.key);
   assert.deepEqual(missing, [], "features listed in lib/features.ts but never inserted by a migration");
 });
 
+
+test("every migration that adds a feature also grants it to Super Admin", () => {
+  const dir = join(repoRoot, "prisma", "migrations");
+  const offenders = readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .filter((entry) => {
+      const sql = readFileSync(join(dir, entry.name, "migration.sql"), "utf8");
+      const addsFeature = /INSERT INTO "Feature"/.test(sql);
+      const grantsAll = /INSERT INTO "RoleFeature"[^;]*SELECT\s+'role_super_admin',\s*"id"\s+FROM\s+"Feature"/.test(sql);
+      return addsFeature && !grantsAll;
+    })
+    .map((entry) => entry.name);
+  assert.deepEqual(offenders, [], "these migrations add features without granting them to Super Admin");
+});

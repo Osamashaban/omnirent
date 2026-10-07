@@ -23,7 +23,7 @@ if (!email || !password) {
 const prisma = new PrismaClient();
 
 try {
-  const role = await prisma.role.findFirstOrThrow({ where: { isSuperAdmin: true } });
+  const role = await prisma.role.findUniqueOrThrow({ where: { name: "Super Admin" } });
   const passwordHash = await hashPassword(password);
   await prisma.user.upsert({
     where: { email },

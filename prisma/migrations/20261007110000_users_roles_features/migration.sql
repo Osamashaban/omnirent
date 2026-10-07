@@ -1,6 +1,6 @@
 -- Adds sign-in accounts, roles, and the list of system features each role can
--- be given access to. Also creates the Super Admin role and the starting list
--- of features.
+-- be given access to. Also creates the Super Admin role, the starting list of
+-- features, and gives Super Admin access to all of them.
 --
 -- Additive only: four new tables, nothing existing is changed or removed.
 --
@@ -24,7 +24,6 @@ CREATE TABLE "User" (
 CREATE TABLE "Role" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "isSuperAdmin" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -70,14 +69,18 @@ ALTER TABLE "RoleFeature" ADD CONSTRAINT "RoleFeature_roleId_fkey" FOREIGN KEY (
 ALTER TABLE "RoleFeature" ADD CONSTRAINT "RoleFeature_featureId_fkey" FOREIGN KEY ("featureId") REFERENCES "Feature"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 
--- Super Admin: may use every feature, including ones added later. This comes
--- from isSuperAdmin, not from rows in RoleFeature, so it needs no grants.
-INSERT INTO "Role" ("id", "name", "isSuperAdmin", "updatedAt")
-VALUES ('role_super_admin', 'Super Admin', true, CURRENT_TIMESTAMP);
+INSERT INTO "Role" ("id", "name", "updatedAt")
+VALUES ('role_super_admin', 'Super Admin', CURRENT_TIMESTAMP);
 
 -- The starting list of features. Must match FEATURES in lib/features.ts (a
--- test checks this). New features are added by later migrations.
+-- test checks this).
 INSERT INTO "Feature" ("id", "key", "name", "description") VALUES
   ('feature_vendor_dashboard', 'vendor_dashboard', 'Vendor dashboard', 'The dashboard property owners, managers and brokers use.'),
   ('feature_ops_dashboard', 'ops_dashboard', 'Operations dashboard', 'The Omnirent team''s internal operations dashboard.'),
   ('feature_users_roles', 'users_roles', 'Users and roles', 'Add users, create roles, and choose which features each role can use.');
+
+-- Super Admin gets every feature. Any later migration that adds a feature must
+-- end with this same statement, so Super Admin keeps access to everything.
+INSERT INTO "RoleFeature" ("roleId", "featureId")
+SELECT 'role_super_admin', "id" FROM "Feature"
+ON CONFLICT DO NOTHING;

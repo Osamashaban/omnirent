@@ -5,9 +5,8 @@
 // roles screen will show. This copy lets code name a feature without a typo
 // slipping through: canAccess(role, "users_roles") is checked by TypeScript.
 //
-// Adding a feature means adding it here AND inserting it in a migration; a
-// test fails if the two lists disagree. Super Admin gets the new feature
-// automatically, with no extra step.
+// Adding a feature means adding it here AND inserting it in a migration that
+// also grants it to Super Admin; tests fail if either step is missing.
 // ---------------------------------------------------------------------------
 
 export const FEATURES = [

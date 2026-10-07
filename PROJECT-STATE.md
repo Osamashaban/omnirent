@@ -135,9 +135,11 @@ Nothing temporary is outstanding.
 
 Added 2026-10-07. Every user has one role; roles get access feature by
 feature (Feature + RoleFeature tables, list mirrored in `lib/features.ts`).
-The Super Admin role has `isSuperAdmin = true` and bypasses the grant list, so
-it can use every feature, including future ones. The rule lives only in
-`lib/access.ts`.
+Every role follows the same rule (Ossama, 2026-10-07: no special Super Admin
+flag): a role may use exactly the features it has RoleFeature rows for. Super
+Admin has a row for every feature; any migration adding a feature must end with
+the "grant every feature to role_super_admin" statement (a test enforces it).
+The rule lives only in `lib/access.ts`.
 
 Passwords are stored as scrypt hashes (Node built-in, no extra library). The
 first user is created per database by `scripts/create-first-user.mjs` from
