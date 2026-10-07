@@ -1,18 +1,16 @@
 // ---------------------------------------------------------------------------
-// The one rule for "may this person use this feature?".
+// The one rule for "may this person use this module?".
 //
-// A role may use exactly the features it has been granted, and nothing else.
+// A role may use exactly the modules it has been granted, and nothing else.
 // Every role, Super Admin included, follows this same rule.
 // ---------------------------------------------------------------------------
 
-import type { FeatureKey } from "./features";
+import type { ModuleKey } from "./modules";
 
-export type RoleAccess = {
-  // Keys of the features this role has been granted.
-  featureKeys: readonly string[];
-};
-
-export function canAccess(role: RoleAccess | null | undefined, feature: FeatureKey | (string & {})): boolean {
-  if (!role) return false;
-  return role.featureKeys.includes(feature);
+export function canAccess(
+  grantedModuleKeys: readonly string[] | null | undefined,
+  module: ModuleKey | (string & {}),
+): boolean {
+  if (!grantedModuleKeys) return false;
+  return grantedModuleKeys.includes(module);
 }
