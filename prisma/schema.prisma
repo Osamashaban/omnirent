@@ -29,6 +29,72 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// No models yet. The temporary HealthCheck and ScratchNote tables that proved
-// the deployment pipeline were removed once it was working; the first real
-// model belongs here.
+// ---------------------------------------------------------------------------
+// Who can sign in, and what each of them is allowed to use.
+//
+// Every person who signs in is a User. Every User has exactly one Role. What a
+// Role may use is decided feature by feature: Feature is the list of every
+// part of the system, and RoleFeature records "this role may use this feature".
+//
+// A Role marked isSuperAdmin skips that list entirely and may use everything,
+// including features added after the role was created. The access check in
+// lib/access.ts is the one place that rule lives.
+// ---------------------------------------------------------------------------
+
+model User {
+  id String @id @default(cuid())
+
+  // Always stored in lower case, so "Info@…" and "info@…" are the same person.
+  email String @unique
+
+  // Never the password itself: a one-way scrambled form of it (see
+  // lib/password.ts). Nobody, including us, can read a password back out.
+  passwordHash String
+
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Role {
+  id   String @id @default(cuid())
+  name String @unique
+
+  // True only for Super Admin: access to every feature, present and future.
+  isSuperAdmin Boolean @default(false)
+
+  users    User[]
+  features RoleFeature[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Feature {
+  id String @id @default(cuid())
+
+  // Stable identifier the code checks against, e.g. "users". Never renamed.
+  key String @unique
+
+  // What people see in the roles screen.
+  name        String
+  description String?
+
+  roles RoleFeature[]
+
+  createdAt DateTime @default(now())
+}
+
+// One row = one role may use one feature. No row = no access.
+model RoleFeature {
+  roleId    String
+  role      Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  featureId String
+  feature   Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([roleId, featureId])
+}
