@@ -19,6 +19,17 @@ descriptions are: the person reading this does not read code.
 
 ---
 
+## 0.006 — 2026-10-07 14:05 UTC
+
+The Ops dashboard now has accounts. Team members sign in at ops.getomnirent.com
+with their own email and password, in Arabic or English, on desktop or phone.
+A Super Admin can add people, choose each person's role, and create roles that
+see only the modules ticked for them. Forgotten passwords can be reset by
+email, and new team members get an email invite to set their own password.
+Emails reach real inboxes once Resend is set up for getomnirent.com.
+
+Commit: `pending`
+
 ## 0.005 — 2026-10-05 15:09 UTC
 
 Each web address now shows its own "coming soon" page in the Omnirent brand:

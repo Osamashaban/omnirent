@@ -29,6 +29,136 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// No models yet. The temporary HealthCheck and ScratchNote tables that proved
-// the deployment pipeline were removed once it was working; the first real
-// model belongs here.
+// ---------------------------------------------------------------------------
+// Who can sign in to the Ops dashboard, and what each of them is allowed to use.
+//
+// Every person who signs in is a User. Every User has exactly one Role. What a
+// Role may use is decided module by module: Module is the list of every part
+// of the system, and RoleModule records "this role may use this module". A
+// role can use exactly the modules it has rows for, and nothing else.
+//
+// Every role works the same way, Super Admin included. Super Admin simply has
+// a row for every module: each migration that adds a module also grants it to
+// Super Admin (a test enforces this).
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  INVITED // added by an admin, has not set a password yet
+  ACTIVE
+  DEACTIVATED // cannot sign in; data kept; can be reactivated
+}
+
+model User {
+  id   String @id @default(cuid())
+  name String
+
+  // Always stored in lower case, so "Info@…" and "info@…" are the same person.
+  email String @unique
+
+  // Never the password itself: a one-way scrambled form of it (see
+  // lib/password.ts). Empty until an invited user accepts their invite.
+  passwordHash String?
+
+  status UserStatus @default(INVITED)
+
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  lastLoginAt DateTime?
+
+  // Lockout after repeated wrong passwords (see lib/login-rules.ts).
+  failedLoginCount  Int       @default(0)
+  lastFailedLoginAt DateTime?
+  lockedUntil       DateTime?
+
+  invitedAt   DateTime?
+  invitedById String?
+  invitedBy   User?     @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+  invited     User[]    @relation("InvitedBy")
+
+  sessions Session[]
+  tokens   PasswordResetToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Role {
+  id String @id @default(cuid())
+
+  // Typed by whoever creates the role, in whichever language they use.
+  name String @unique
+
+  users   User[]
+  modules RoleModule[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Module {
+  id String @id @default(cuid())
+
+  // Stable identifier the code checks against, e.g. "users_roles". Never renamed.
+  key String @unique
+
+  // One name per module (Ossama, 2026-10-07). Built-in modules are shown in
+  // the viewer's language from lib/i18n.ts by key; this name is the fallback.
+  name        String
+  description String?
+
+  // Order in lists and the role editor.
+  sortOrder Int @default(0)
+
+  roles RoleModule[]
+
+  createdAt DateTime @default(now())
+}
+
+// One row = one role may use one module. No row = no access.
+model RoleModule {
+  roleId   String
+  role     Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  moduleId String
+  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([roleId, moduleId])
+}
+
+// One row per signed-in browser. The cookie holds a random value; only its
+// hash is stored here, so a copy of this table cannot be used to sign in.
+// Deleting a user's rows signs them out everywhere.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+enum TokenType {
+  RESET // "forgot password" link, valid 60 minutes
+  INVITE // invite link, valid 7 days
+}
+
+// Single-use links sent by email. Only the hash of the link's secret is stored.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  type      TokenType
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  requestIp String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, type])
+}
