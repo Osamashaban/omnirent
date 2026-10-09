@@ -183,6 +183,12 @@ next to a canvas of screens.
    "The [feature] design is ready" with the link. The building Claude reads
    the canvas directly; nothing else is passed by hand.
 
+**Every screen comes from Claude Design.** The building Claude will not
+design screens itself, and will not build from a description, a screenshot
+or a Figma page. If something you ask for needs a screen that isn't in your
+canvas, it stops and sends you back to Claude Design. The only exception is
+backend-only work that no user sees, like a connection to a booking channel.
+
 Never paste a password into a design chat, even a test one.
 
 ## Building and shipping a feature
@@ -196,7 +202,7 @@ good"**. Every step, and who does what:
 | 1 | Read the design | Checks all access, reads the canvas and design chat, checks Ossama isn't building the same thing | Type "The [feature] design is ready" + link |
 | 2 | Build it | Builds the feature | Nothing |
 | 3 | Test it | Tests every case: normal use, mistakes, permissions, Arabic, phone | Nothing |
-| 4 | Brief | Sends a 5-minute brief: what it does, risks, undo plan, what was tested | Read it |
+| 4 | Brief | Sends a 5-minute brief: what it does, database and API changes, risks, undo plan, what was tested | Read it |
 | 5 | His OK | Waits | Type **"deploy"** |
 | 6 | Pull request | Puts the change up for review on GitHub; automatic checks run | Nothing |
 | 7 | Test copy | Puts it on staging with test data and sends the link | Nothing yet |

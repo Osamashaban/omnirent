@@ -37,13 +37,27 @@ steps visible in it and update it as each step finishes.
 
 1. **Read the design.** Read the design the requester linked, and any chat
    that came with it.
-   - Ossama's designs live in his Claude Design session and canvas (links in
-     `PROJECT-STATE.md`). His Claude reads both.
-   - For the other partner, use the design link they give: their own Claude
-     Design canvas (made as described in `docs/PARTNER-GUIDE.md`, Part 2), or
-     a page in the Figma file "Omnirent Feature Designs". If you cannot open the link, say so in one line and ask them to
-     share it with their account. Never work from a guess of what the design
-     looks like.
+   - **Designs come only from Claude Design.** Any feature that adds or
+     changes something a user sees must arrive with a Claude Design canvas
+     link (a claude.ai design artifact) showing it. Do not design screens
+     yourself in code, do not work from a description, a screenshot, a Figma
+     page or a guess, and do not "fill in" screens the canvas does not show.
+     If the link is missing, or the canvas does not cover every screen and
+     state the feature needs, **stop**: tell the requester in plain words
+     what is missing and ask them to design it in Claude Design first. Figma
+     is only the archive of approved designs (step 11), never a source.
+   - **The one exception is backend-only work**: changes no user sees, such
+     as APIs, background jobs, database work or channel connections (for
+     example Channex sync). These need no design. Say "Backend only, no
+     screens" in the brief's "What you'll see". If backend work turns out to
+     need any screen, even a settings toggle or an error message, it needs a
+     design first.
+   - A bug fix that makes a screen match its already approved design needs
+     no new design. Link the approved canvas page in the brief.
+   - Ossama's designs live in his Claude Design canvas (link in
+     `PROJECT-STATE.md`). The other partner's live in their own canvas (set
+     up as in `docs/PARTNER-GUIDE.md`). If you cannot open the link, say so
+     in one line and ask them to share it with their account.
    - Before building, look at the open pull requests on this repository to
      see what the other partner is building. If it touches the same screens
      or database tables, tell the requester in one line before starting.
@@ -97,17 +111,22 @@ In this order, in plain words:
 1. **What it does** (2-3 sentences, from the user's point of view)
 2. **What you'll see** (screens, and the design link)
 3. **Database changes** (plain words)
-4. **Risks.** Business (revenue, customers, channel partners, legal, brand)
+4. **APIs.** If the feature adds or changes any API (a way for the app,
+   a channel such as Channex, or another system to read or change data),
+   list each one: what it does in plain words, who can use it (which signed
+   in roles, a channel partner, or anyone on the internet), what data it
+   reads or changes, and how it is protected. Otherwise write "None".
+5. **Risks.** Business (revenue, customers, channel partners, legal, brand)
    and Technical (data loss, speed, security, sync failures), each rated
    None, Low or High, with why
-5. **Fit with existing features.** Works with (how it interacts) and Blockers
+6. **Fit with existing features.** Works with (how it interacts) and Blockers
    (what breaks, needs changing or must ship first, else "None"). Include any
    overlap with what the other partner is building.
-6. **Undo plan** (how to roll back, and whether that is easy or hard)
-7. **Testing done** (cases run, all pass or what failed)
-8. **What you need to do** (or "Nothing.")
-9. **What's not included**
-10. **How to check it** (3-5 things on staging, including Arabic and phone)
+7. **Undo plan** (how to roll back, and whether that is easy or hard)
+8. **Testing done** (cases run, all pass or what failed)
+9. **What you need to do** (or "Nothing.")
+10. **What's not included**
+11. **How to check it** (3-5 things on staging, including Arabic and phone)
 
 End with: Reply "deploy" to ship.
 

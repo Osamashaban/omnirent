@@ -28,11 +28,12 @@ test("the pipeline lists all 15 steps, in order", () => {
   assert.deepEqual(numbers, Array.from({ length: 15 }, (_, i) => i + 1));
 });
 
-test("the brief keeps its 10 sections and the deploy line", () => {
+test("the brief keeps its 11 sections, including APIs, and the deploy line", () => {
   const pipeline = read("PIPELINE.md");
   const brief = pipeline.split("## The 5-minute brief")[1].split("\n## ")[0];
   const numbers = [...brief.matchAll(/^(\d+)\. \*\*/gm)].map((m) => Number(m[1]));
-  assert.deepEqual(numbers, Array.from({ length: 10 }, (_, i) => i + 1));
+  assert.deepEqual(numbers, Array.from({ length: 11 }, (_, i) => i + 1));
+  assert.match(brief, /^4\. \*\*APIs\.\*\*/m);
   assert.match(brief, /Reply "deploy" to ship\./);
 });
 
@@ -81,4 +82,12 @@ test("the partner's guide walks him through all 15 pipeline steps", () => {
   assert.deepEqual(steps, Array.from({ length: 15 }, (_, i) => i + 1));
   assert.match(guide, /## Designing a feature/);
   assert.match(guide, /## Project information/);
+});
+
+test("screens only ever come from a Claude Design canvas, except backend-only work", () => {
+  const step1 = read("PIPELINE.md").split("1. **Read the design.**")[1].split("\n2. **")[0];
+  assert.match(step1, /Designs come only from Claude Design/);
+  assert.match(step1, /Do not design screens\s+yourself in code/);
+  assert.match(step1, /The one exception is backend-only work/);
+  assert.match(step1, /never a source/, "Figma must not count as a design source");
 });
