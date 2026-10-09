@@ -58,8 +58,13 @@ counts because they are reading different databases.
 Changes reach `main` through a pull request, following the feature pipeline
 in `PIPELINE.md`. Two partners build in parallel, each with their own Claude
 and accounts (agreed 2026-10-09): the requester approves in chat ("deploy",
-then "looks good"), the other partner approves the pull request on GitHub,
-and the agent then merges. Only one feature goes through backup, production
+then "looks good"), the other partner approves the pull request on GitHub
+before anything touches production (Ossama, 2026-10-09: production only,
+not staging), and the agent then merges. Pending approvals are listed on
+the pinned page "Omnirent Release Approvals",
+https://claude.ai/artifact/2Zy4AxAAaRweABu4oM8xQQ. This approval is a rule
+the agents follow, not a GitHub setting: Ossama chose (2026-10-09) not to
+turn on branch protection for now. Only one feature goes through backup, production
 migration and merge at a time (the `shipping` label). Getting the second
 partner set up is described in `docs/PARTNER-GUIDE.md`.
 

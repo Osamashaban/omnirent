@@ -76,7 +76,8 @@ Show him this in plain words:
    design.
 4. **Say "looks good"** after clicking through the test copy, in Arabic and
    on the phone.
-5. **Ossama taps Approve** on GitHub. Claude backs up the live data and puts
+5. **Ossama taps Approve** on GitHub: a second approval, needed for every
+   release to the live app (never for staging). Claude backs up the live data and puts
    the feature live, then watches it for 24 hours.
 
 And the other way round: when Ossama ships something, he sends a link and
@@ -96,8 +97,9 @@ it, then run the check.
 | 4 | **Neon (the database).** Accept Ossama's Neon invite, then in Claude open Settings → Connectors and connect Neon with his own account. | **Real action:** read Neon project `withered-grass-50384799` (name `omnirent`) and list its branches. Ask him to open console.neon.tech and tell you the two branch names he sees. Pass when both of you see `main` and `staging`. Read only: change nothing. |
 | 5 | **Vercel (hosting).** Accept Ossama's Vercel invite, then connect Vercel in Connectors. | **Real action:** find the preview deployment Vercel built for his onboarding branch in project `omnirent` (team `osamas-team1`). Ask him to open it. Pass when it loads for him and you can see it in Vercel. |
 | 6 | **Figma.** Accept Ossama's invite to the Omnirent Figma team, then connect Figma in Connectors. | **Real action:** open the file "Omnirent Feature Designs" and list its pages. Ask him to open https://www.figma.com/design/XLdraTeNnugIZkweeXS9gE and name one page. Pass when they match. |
-| 7 | **Add-ons.** Add the **Design**, **Product Management** and **Product Discovery Flow** plugins, the same ones Ossama uses. Offer each to install; he taps to add it. | Your skill list now includes the Design plugin's skills (design critique, UX copy, accessibility review, design handoff), Product Management skills and product discovery. |
-| 8 | **His design canvas.** Open Claude Design, start a design called **Omnirent Design – <his name>**, and paste the design setup message from "Designing a feature" below. Ossama shares his own canvas and the design system with him too. | **Real action:** he pastes his canvas link and you open it. Pass when you can see it, it uses the Omnirent design system (green brand color, Outfit and IBM Plex Sans Arabic fonts), and he can open Ossama's canvas. |
+| 7 | **Release approvals page.** Ossama shares "Omnirent Release Approvals" with him with edit access. He opens https://claude.ai/artifact/2Zy4AxAAaRweABu4oM8xQQ and pins it to his sidebar. | **Real action:** read the page's `releases` list. Pass when the read works and he confirms it's pinned in his sidebar. |
+| 8 | **Add-ons.** Add the **Design**, **Product Management** and **Product Discovery Flow** plugins, the same ones Ossama uses. Offer each to install; he taps to add it. | Your skill list now includes the Design plugin's skills (design critique, UX copy, accessibility review, design handoff), Product Management skills and product discovery. |
+| 9 | **His design canvas.** Open Claude Design, start a design called **Omnirent Design – <his name>**, and paste the design setup message from "Designing a feature" below. Ossama shares his own canvas and the design system with him too. | **Real action:** he pastes his canvas link and you open it. Pass when you can see it, it uses the Omnirent design system (green brand color, Outfit and IBM Plex Sans Arabic fonts), and he can open Ossama's canvas. |
 
 Project instructions for step 1:
 
@@ -111,7 +113,7 @@ not connected yet: send him back to that step.
 
 ### Part 4: The test release
 
-When all eight steps pass, say: "Setup is done. Now we make one small test
+When all nine steps pass, say: "Setup is done. Now we make one small test
 release on staging, to prove the whole process works for you. Afterwards we
 delete it." Then run a miniature version of the pipeline with him, on his
 onboarding branch:
@@ -150,7 +152,7 @@ For every real feature, follow `PIPELINE.md` exactly, as described in
 This is exactly how Ossama designs, in Claude Design: chatting with Claude
 next to a canvas of screens.
 
-**Design setup message** (setup step 8, pasted once into his new canvas):
+**Design setup message** (setup step 9, pasted once into his new canvas):
 
 > Pull in the Omnirent design system
 > (https://claude.ai/artifact/K4f96mUX1D9v9yx4MVwxpR) and install its tokens
@@ -210,9 +212,9 @@ good"**. Every step, and who does what:
 | 9 | Design check | Compares every screen with the design, phone and desktop, Arabic and English; posts MATCH or the differences and fixes them | Nothing |
 | 10 | His review | Waits | Click through staging (Arabic and phone too), then type **"looks good"** |
 | 11 | Figma | Saves the approved design to the Figma file and shares the link | Nothing |
-| 12 | Backup | Waits if Ossama's feature is going live, then backs up the live database | Nothing |
+| 12 | Ossama's approval, then backup | Adds the release to the approvals page and sends him the link for Ossama. Touches nothing live until Ossama has tapped **Approve** on GitHub. Then waits if Ossama's feature is going live, and backs up the live database | Send Ossama the link |
 | 13 | Database update | Updates the live database, if the feature needs it | Nothing |
-| 14 | Go live | Sends him a link for Ossama; once Ossama taps **Approve**, puts it live and sends the live link | Send Ossama the link |
+| 14 | Go live | Puts it live, sends the live link, and marks it live on the approvals page | Nothing |
 | 15 | After-launch check | Watches the live app for 24 hours, then says "all clear" or what went wrong | Nothing |
 
 When Ossama ships something, he sends a link like the one in step 14. Open
@@ -236,6 +238,7 @@ Never add passwords, keys or connection strings here.
 | Database | Neon project `omnirent` (`withered-grass-50384799`), Frankfurt. Branch `main` holds live data; `staging` holds test data. |
 | Design system | https://claude.ai/artifact/K4f96mUX1D9v9yx4MVwxpR (colors, fonts, logos; product font Outfit, marketing font DM Sans) |
 | Ossama's design canvas | https://claude.ai/code/artifact/9074ddb5-3a2c-442a-8150-bdfe21fd749d (shared with the partner by Ossama) |
+| Release approvals | "Omnirent Release Approvals": https://claude.ai/artifact/2Zy4AxAAaRweABu4oM8xQQ, pinned in both partners' sidebars. Lists every release waiting for each partner's approval. |
 | Approved designs | Figma file "Omnirent Feature Designs": https://www.figma.com/design/XLdraTeNnugIZkweeXS9gE (one page per feature) |
 | Domain | getomnirent.com |
 | Channel connections | Through Channex (decided 2026-10-03) |

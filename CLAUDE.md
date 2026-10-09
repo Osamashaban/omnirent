@@ -50,8 +50,9 @@ This project has two partners, Ossama (the owner) and his business partner.
 Each works with their own Claude and their own accounts, and both ship to the
 same production. Neither reads code. They review at two levels: the pull
 request description, and the preview deployment they can click through in a
-browser. Before anything is merged, the other partner approves the pull
-request on GitHub (see `PIPELINE.md`).
+browser. Before anything touches production, the other partner approves the
+pull request on GitHub (see "Second approval for production" in
+`PIPELINE.md`).
 
 That has one consequence worth stating plainly: **no human is going to catch a
 mistake by reading the diff.** There is no second pair of eyes on the code

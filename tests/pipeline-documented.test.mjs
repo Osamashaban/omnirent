@@ -40,7 +40,7 @@ test("the brief keeps its 11 sections, including APIs, and the deploy line", () 
 test("the parallel-work safeguards are still written down", () => {
   const pipeline = read("PIPELINE.md");
   assert.match(pipeline, /label\s+`shipping`/, "the one-release-at-a-time lock");
-  assert.match(pipeline, /### Approval between partners/);
+  assert.match(pipeline, /### Second approval for production/);
   assert.match(pipeline, /up to date with `main`/);
 });
 
@@ -66,7 +66,7 @@ test("Osama Junior onboards the partner in order and checks every step", () => {
   }
   const setup = guide.split("### Part 3: Setup, step by step")[1].split("\n### ")[0];
   const setupSteps = [...setup.matchAll(/^\| (\d+) \|/gm)].map((m) => Number(m[1]));
-  assert.deepEqual(setupSteps, Array.from({ length: 8 }, (_, i) => i + 1));
+  assert.deepEqual(setupSteps, Array.from({ length: 9 }, (_, i) => i + 1));
 });
 
 test("the onboarding test release never goes live and waits for the partner to delete it", () => {
@@ -90,4 +90,15 @@ test("screens only ever come from a Claude Design canvas, except backend-only wo
   assert.match(step1, /Do not design screens\s+yourself in code/);
   assert.match(step1, /The one exception is backend-only work/);
   assert.match(step1, /never a source/, "Figma must not count as a design source");
+});
+
+test("production waits for the other partner's GitHub approval, staging does not", () => {
+  const pipeline = read("PIPELINE.md");
+  const step12 = pipeline.split("12. **")[1].split("\n13. **")[0];
+  assert.match(step12, /Wait for the other partner's approval/);
+  assert.match(step12, /Nothing touches production/);
+  const section = pipeline.split("### Second approval for production")[1].split("\n## ")[0];
+  assert.match(section, /applies only to\s+production/);
+  assert.match(section, /is not an approval/);
+  assert.match(section, /https:\/\/claude\.ai\/artifact\/2Zy4AxAAaRweABu4oM8xQQ/);
 });

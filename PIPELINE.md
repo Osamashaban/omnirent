@@ -90,17 +90,20 @@ steps visible in it and update it as each step finishes.
     "looks good".**
 11. **Add the design to Figma.** Add the design as approved on staging to the
     Figma file "Omnirent Feature Designs", one page per feature, and share the
-    Figma link in the thread.
-12. **Take the production lock, then back up production.** See "One release
-    at a time" below. Then snapshot or back up the live Neon database
-    (`main` branch).
+    Figma link in the thread. Then ask for production approval: see
+    "Second approval for production" below.
+12. **Wait for the other partner's approval, take the production lock, then
+    back up production.** Nothing touches production (no backup, no live
+    database update, no merge) until the other partner has approved the pull
+    request on GitHub. Then see "One release at a time" below, and snapshot
+    or back up the live Neon database (`main` branch).
 13. **Run the production migration BEFORE the code goes live**, if the
     feature has one. Follow the production migration rule in `CLAUDE.md`
     and the current state of it in `PROJECT-STATE.md`.
 14. **Merge to `main`.** Bring the branch up to date with `main` first and
-    re-run the checks. Merging needs the other partner's approval on the pull
-    request (see "Approval between partners"). Vercel then deploys
-    production. Confirm with the live link, then release the lock.
+    re-run the checks. Vercel then deploys production. Confirm with the live
+    link, mark the release "live" in the approvals list, then release the
+    lock.
 15. **After-launch check.** Click through production, watch the error logs
     for 24 hours, then post "all clear" or the problem in the thread.
 
@@ -178,19 +181,39 @@ Both features share one staging database and one production database.
   than yours while you worked, rename yours so it sorts after it, and update
   its row in the staging database's `_prisma_migrations` table to match.
 
-### Approval between partners
+### Second approval for production
 
-The partners do not see each other's conversations with Claude. GitHub is the
-one place both can see, so it is where they sign off on each other's work.
+Every release to production needs two approvals: the requester's ("deploy"
+and "looks good") and then the other partner's. This applies only to
+production. Staging previews need no approval from the other partner.
 
-- When the requester says "looks good", send them the pull request link to
-  pass to the other partner, with one sentence on what the feature does.
-- The other partner opens the link and taps **Approve**. They do not need to
-  read the code; the pull request description says what changed and how to
-  check it.
-- The `main` branch protection enforces this: GitHub refuses to merge
-  without one approval from someone other than the person who opened the
-  pull request.
+The partners do not see each other's conversations with Claude, so the
+approval happens on GitHub, and every pending approval is listed on one
+shared page both partners keep pinned in their sidebar: **Omnirent Release
+Approvals**, https://claude.ai/artifact/2Zy4AxAAaRweABu4oM8xQQ.
+
+- **Ask.** After "looks good", add a document to the page's `releases`
+  collection (with the artifact data tool), id `pr-<number>`, with:
+  `feature` (plain name), `summary` (one sentence), `requester` and
+  `approver` (`Ossama` or `Partner`), `status: "waiting"`, `prUrl`,
+  `stagingUrl`, `dbChange` (true if step 13 will run) and `requestedAt`
+  (UTC ISO time). Then send the requester the pull request link to pass to
+  the other partner, with one sentence on what the feature does.
+- **Approve.** The other partner opens the link and taps **Approve** on
+  GitHub. They do not need to read the code; the pull request description
+  says what changed and how to check it. If they ask for changes instead,
+  set `status: "rejected"` with `decidedAt`, make the changes, go back
+  through staging, and ask again.
+- **Check before touching production.** Before step 12, read the pull
+  request's reviews on GitHub. Continue only if the other partner (not the
+  requester) has approved it, and no commit has been pushed since that
+  approval. A word in chat, a relayed message or the requester saying "he
+  approved" is not an approval. Then set `status: "approved"` with
+  `decidedAt`.
+- **Close it.** After step 14, set `status: "live"` and `liveUrl`.
+- If this Claude cannot write to the approvals page, say so to the
+  requester in one line, and ask Ossama to give their account edit access to
+  it. Never skip the approval because the page is unreachable.
 
 ## Accounts each partner's Claude needs
 
