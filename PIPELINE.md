@@ -39,9 +39,9 @@ steps visible in it and update it as each step finishes.
    that came with it.
    - Ossama's designs live in his Claude Design session and canvas (links in
      `PROJECT-STATE.md`). His Claude reads both.
-   - For the other partner, use the design link they give: a Claude Design
-     artifact shared with them, or a page in the Figma file "Omnirent Feature
-     Designs". If you cannot open the link, say so in one line and ask them to
+   - For the other partner, use the design link they give: their own Claude
+     Design canvas (made as described in `docs/PARTNER-GUIDE.md`, Part 2), or
+     a page in the Figma file "Omnirent Feature Designs". If you cannot open the link, say so in one line and ask them to
      share it with their account. Never work from a guess of what the design
      looks like.
    - Before building, look at the open pull requests on this repository to

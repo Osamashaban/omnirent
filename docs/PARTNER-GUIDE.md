@@ -33,7 +33,8 @@ So these rules are not suggestions:
 4. **Once setup is done**, read `CLAUDE.md`, `PIPELINE.md` and
    `PROJECT-STATE.md` in the `Osamashaban/omnirent` repository, and follow
    them for every feature. They hold the 15-step process, the brief format
-   and the rules. `CLAUDE.md` makes you re-run the access checks at the start
+   and the rules. Part 2 below is how designs are made; hold his designs to
+   it before he says one is ready. `CLAUDE.md` makes you re-run the access checks at the start
    of every feature, and never skip a pipeline step, whoever asks.
 5. **Talk in plain words.** Short sentences, no jargon, no file names or
    commands. One step at a time. When he has to click something, say exactly
@@ -52,54 +53,116 @@ So these rules are not suggestions:
 | 5 | In Claude, open **Settings → Connectors** and connect **Neon**, signing in with his own account. | Describing Neon project `withered-grass-50384799` (named `omnirent`) works. |
 | 6 | Same place, connect **Vercel**. | Reading Vercel project `omnirent` in team `osamas-team1` works. |
 | 7 | Same place, connect **Figma**. | Opening Figma file `XLdraTeNnugIZkweeXS9gE` ("Omnirent Feature Designs") works. |
-| 8 | Create a Claude project called **Omnirent**, add the repository `Osamashaban/omnirent` in its settings, upload this file to it, and paste the instructions below into the project's instructions. | Inside that project, the repository's `CLAUDE.md` can be read. |
+| 8 | In Claude, add the same add-ons Ossama uses: the **Design**, **Product Management** and **Product Discovery Flow** plugins. Claude offers them to install; he taps to add each. | Your skill list includes the Design plugin's skills (design critique, UX copy, accessibility review, design handoff), the Product Management skills and product discovery. If not, offer the missing plugin to install. |
+| 9 | Set up his design canvas (see "Part 2: Designing a feature"): open Claude Design, start a new design called **Omnirent Design – [his name]**, and ask it to pull in the Omnirent design system. Ossama shares his own canvas and design system with him as well. | He pastes the canvas link and you can open it, and the design system link (https://claude.ai/artifact/K4f96mUX1D9v9yx4MVwxpR) opens for him. |
+| 10 | Create a Claude project called **Omnirent**, add the repository `Osamashaban/omnirent` in its settings, upload this file to it, and paste the instructions below into the project's instructions. | Inside that project, the repository's `CLAUDE.md` can be read. |
 
 If a check fails because a connector's tools aren't available to you at all,
 that connector isn't connected yet: send him back to that step.
 
-Project instructions for step 8:
+Project instructions for step 10:
 
 > I'm a partner in OmniRent and I don't read code. Follow the OmniRent start
 > here file in this project, then CLAUDE.md and PIPELINE.md in the
 > Osamashaban/omnirent repository, for everything. Never skip a step, even if
 > I ask. Explain everything to me in plain words.
 
-When all eight checks pass, tell him setup is complete, and explain Part 2
+When all ten checks pass, tell him setup is complete, and explain Part 2
 below in your own simple words.
 
 ---
 
-## Part 2: how building a feature works (for the partner)
+## Part 2: Designing a feature (for the partner)
 
-You only ever type these:
+This is exactly how Ossama designs. You do it in Claude Design, chatting with
+Claude next to a canvas of screens.
 
-| You type | What happens |
+**Once, at the start** (setup step 9): open Claude Design, start a new design
+called **Omnirent Design – [your name]**, and type:
+
+> Pull in the Omnirent design system
+> (https://claude.ai/artifact/K4f96mUX1D9v9yx4MVwxpR) and install its tokens
+> in the theme. Use these rules for every feature: Arabic first, right to
+> left, with English on the same page below the Arabic; phone (390px) and
+> desktop (1280-1440px); show every state (empty, loading, error, success);
+> fonts Outfit and IBM Plex Sans Arabic; brand green; Lucide icons only;
+> realistic Egyptian sample data in EGP; success messages after saving, and
+> a confirmation pop-up only before deleting something; one canvas page per
+> feature.
+
+Ossama also shares his own canvas with you, so you can see every feature
+already designed and keep yours consistent with them.
+
+**For each feature:**
+
+1. **Describe it in plain words**, including the business rules. For example,
+   Ossama started the login screen with: "let's create the login screen ...
+   the user can write the email and password, or press forget password".
+2. **Answer Claude's questions.** Claude repeats the feature back, points out
+   gaps and asks numbered questions. Answer by number.
+3. **Research before designing.** Ask Claude to research the feature first
+   (for example, how competitors handle it) using the Design and Product
+   Discovery skills, and show you what it found. Approve the direction
+   before it starts drawing.
+4. **Correct it in short messages**, like "remove sign-up, users are only
+   created by our team", "add the desktop version", "add a success message".
+   Ask for a design critique and an accessibility review before you finish.
+5. **Link it as a clickable prototype**: "link the screens together as a
+   prototype", then click through it yourself.
+6. **Name the page** when you're happy: "save this feature as
+   Ops_Feature_Name" (for example Ops_Dashboard_Login).
+7. **Hand it over**: copy the canvas link, go to your Omnirent project in
+   Claude, and type "The [feature] design is ready" with the link. Nothing
+   else is passed by hand: your building Claude reads the canvas directly.
+
+Never paste a password into a design chat, even a test one.
+
+## Part 3: Building and shipping a feature (for the partner)
+
+You only ever type three things in your Omnirent project:
+
+| You type | When |
 | --- | --- |
-| **"The [feature name] design is ready"** and paste the design link | Claude checks your access, reads the design, builds it, tests it, and sends you a short brief: what it does, the risks, and how to undo it. |
-| **"deploy"** | You've read the brief and you're happy. Claude puts it on a test copy of the app, checks it for security problems, and compares every screen with the design. Then it sends you a link to try. |
-| **"looks good"** | You've clicked through the test copy (in Arabic and on your phone too). Claude backs up the live database and gets it ready to go live. |
+| **"The [feature name] design is ready"** and the canvas link | Your design is finished (Part 2, step 7). |
+| **"deploy"** | You've read the brief and you're happy. |
+| **"looks good"** | You've clicked through the test copy and you're happy. |
 
-After "looks good", Claude gives you a link to send to Ossama. He opens it and
-taps **Approve**, and then it goes live. When Ossama ships something, you'll
-get a link like that from him: open it, read what it says, and tap
-**Approve** if you're happy. You don't need to read any code.
+Here is every step, so you know what's happening. Claude keeps this list
+visible in the conversation and ticks steps off as it goes.
 
-The day after it goes live, Claude checks for problems and tells you "all
-clear" or what went wrong.
+| # | Step | What Claude does | What you do |
+| --- | --- | --- | --- |
+| 1 | Read the design | Checks all your access, reads your canvas and design chat, and checks Ossama isn't building the same thing | Type "The [feature] design is ready" + link |
+| 2 | Build it | Builds the feature | Nothing |
+| 3 | Test it | Tests every case: normal use, mistakes, permissions, Arabic, phone | Nothing |
+| 4 | Brief | Sends a 5-minute brief: what it does, risks, undo plan, what was tested | Read it |
+| 5 | Your OK | Waits | Type **"deploy"** |
+| 6 | Pull request | Puts the change up for review on GitHub; automatic checks run | Nothing |
+| 7 | Test copy | Puts it on a test copy of the app with test data, and sends the link | Nothing yet |
+| 8 | Security check | Checks for security holes; posts GREEN or RED, and fixes RED first | Nothing |
+| 9 | Design check | Compares every screen with your design, phone and desktop, Arabic and English; posts MATCH or the differences and fixes them | Nothing |
+| 10 | Your review | Waits | Click through the test copy (Arabic and phone too), then type **"looks good"** |
+| 11 | Figma | Saves the approved design to the Omnirent Figma file and shares the link | Nothing |
+| 12 | Backup | Waits if Ossama's feature is going live, then backs up the live database | Nothing |
+| 13 | Database update | Updates the live database, if the feature needs it | Nothing |
+| 14 | Go live | Sends you a link for Ossama; once he taps **Approve**, puts it live and sends the live link | Send Ossama the link |
+| 15 | After-launch check | Watches the live app for 24 hours, then says "all clear" or what went wrong | Nothing |
 
-You can ask questions or ask for changes in normal words at any time, like
+When Ossama ships something, you'll get a link like the one in step 14 from
+him. Open it, read what it says, and tap **Approve** if you're happy. You
+don't need to read any code.
+
+You can ask questions or ask for changes in normal words at any point, like
 "make the button bigger" or "what happens if a guest cancels?".
 
 ## Good to know
 
 - **Every step happens, every time.** Claude won't skip testing, the security
-  check or the design check, even if you ask. That's on purpose: it's what
-  keeps the live app safe for both of you.
+  check or the design check, even if you ask. That's on purpose: it keeps the
+  live app safe for both of you.
 - **You and Ossama can build at the same time.** If you're both working on
   the same screens, Claude tells you.
 - **Only one feature goes live at a time.** If Ossama's is going live when
   yours is ready, Claude waits and tells you.
 - **Nothing reaches the live app without your OK and Ossama's approval.**
   GitHub enforces this, so it can't happen by mistake.
-- **Designs:** if you design in Claude Design, share the design with your
-  Claude account and paste its link. Figma links work too.

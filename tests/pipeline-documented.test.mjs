@@ -60,6 +60,15 @@ test("the partner's start-here file makes his Claude finish setup first", () => 
   const guide = read("docs/PARTNER-GUIDE.md");
   assert.match(guide, /## For Claude: read this first/);
   assert.match(guide, /No feature work until every setup check passes/);
-  const steps = [...guide.matchAll(/^\| (\d+) \|/gm)].map((m) => Number(m[1]));
-  assert.deepEqual(steps, [1, 2, 3, 4, 5, 6, 7, 8]);
+  const setup = guide.split("### Setup steps")[1].split("\n## ")[0];
+  const setupSteps = [...setup.matchAll(/^\| (\d+) \|/gm)].map((m) => Number(m[1]));
+  assert.deepEqual(setupSteps, Array.from({ length: 10 }, (_, i) => i + 1));
+});
+
+test("the partner's guide walks him through all 15 pipeline steps", () => {
+  const guide = read("docs/PARTNER-GUIDE.md");
+  const part3 = guide.split("## Part 3")[1].split("\n## ")[0];
+  const steps = [...part3.matchAll(/^\| (\d+) \|/gm)].map((m) => Number(m[1]));
+  assert.deepEqual(steps, Array.from({ length: 15 }, (_, i) => i + 1));
+  assert.match(guide, /## Part 2: Designing a feature/);
 });
