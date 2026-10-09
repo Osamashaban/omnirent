@@ -56,19 +56,29 @@ test("CLAUDE.md forbids skipping pipeline steps", () => {
   assert.match(read("CLAUDE.md"), /## No step is skipped/);
 });
 
-test("the partner's start-here file makes his Claude finish setup first", () => {
+test("Osama Junior onboards the partner in order and checks every step", () => {
   const guide = read("docs/PARTNER-GUIDE.md");
-  assert.match(guide, /## For Claude: read this first/);
-  assert.match(guide, /No feature work until every setup check passes/);
-  const setup = guide.split("### Setup steps")[1].split("\n## ")[0];
+  assert.match(guide, /you are \*\*Osama Junior\*\*/);
+  for (const part of ["Part 1: Introduction", "Part 2: The process in a nutshell",
+    "Part 3: Setup, step by step", "Part 4: The test release", "Part 5: From now on"]) {
+    assert.match(guide, new RegExp(`### ${part}`), `${part} is missing`);
+  }
+  const setup = guide.split("### Part 3: Setup, step by step")[1].split("\n### ")[0];
   const setupSteps = [...setup.matchAll(/^\| (\d+) \|/gm)].map((m) => Number(m[1]));
-  assert.deepEqual(setupSteps, Array.from({ length: 10 }, (_, i) => i + 1));
+  assert.deepEqual(setupSteps, Array.from({ length: 8 }, (_, i) => i + 1));
+});
+
+test("the onboarding test release never goes live and waits for the partner to delete it", () => {
+  const release = read("docs/PARTNER-GUIDE.md").split("### Part 4: The test release")[1].split("\n### ")[0];
+  assert.match(release, /do not\s+merge/);
+  assert.match(release, /\*\*Wait for him to say it\.\*\*/);
 });
 
 test("the partner's guide walks him through all 15 pipeline steps", () => {
   const guide = read("docs/PARTNER-GUIDE.md");
-  const part3 = guide.split("## Part 3")[1].split("\n## ")[0];
-  const steps = [...part3.matchAll(/^\| (\d+) \|/gm)].map((m) => Number(m[1]));
+  const shipping = guide.split("## Building and shipping a feature")[1].split("\n## ")[0];
+  const steps = [...shipping.matchAll(/^\| (\d+) \|/gm)].map((m) => Number(m[1]));
   assert.deepEqual(steps, Array.from({ length: 15 }, (_, i) => i + 1));
-  assert.match(guide, /## Part 2: Designing a feature/);
+  assert.match(guide, /## Designing a feature/);
+  assert.match(guide, /## Project information/);
 });
