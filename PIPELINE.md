@@ -23,6 +23,9 @@ read the same thing.
 Anything else is a question or a change request about the feature in
 progress. Answer it, or make the change, and keep going.
 
+Two rules from `CLAUDE.md` frame everything below: the setup check runs
+before step 1 of every feature, and no step is ever skipped, whoever asks.
+
 Call the person who asked for the feature **the requester**, and the other
 partner **the other partner**. Both are product people: they do not read
 code. Talk to them in plain words, never in file names, commands or jargon.
@@ -73,8 +76,7 @@ steps visible in it and update it as each step finishes.
     "looks good".**
 11. **Add the design to Figma.** Add the design as approved on staging to the
     Figma file "Omnirent Feature Designs", one page per feature, and share the
-    Figma link in the thread. If this Claude has no Figma access, say so in
-    one line and carry on.
+    Figma link in the thread.
 12. **Take the production lock, then back up production.** See "One release
     at a time" below. Then snapshot or back up the live Neon database
     (`main` branch).
@@ -173,11 +175,13 @@ one place both can see, so it is where they sign off on each other's work.
 
 ## Accounts each partner's Claude needs
 
-Each partner uses their own accounts. Nobody shares a password.
+Each partner uses their own accounts. Nobody shares a password. All four are
+required: the setup check in `CLAUDE.md` refuses to start a feature without
+them.
 
-| Service | Why | Without it |
-| --- | --- | --- |
-| GitHub (collaborator on this repository) | Read and change the code, open pull requests | Nothing works |
-| Neon (member of the `omnirent` project) | Staging migrations, production backup and migration | Steps 7, 12, 13 need the other partner's Claude |
-| Vercel (member of the team) | Preview links, deploy status, error logs | Preview links still appear on GitHub; steps 14-15 log checks need the other partner's Claude |
-| Figma (member of the Omnirent team) | Step 11 | Skip step 11 and say so |
+| Service | Used for |
+| --- | --- |
+| GitHub (collaborator on this repository) | Reading and changing the code, pull requests, approvals |
+| Neon (member of the `omnirent` project) | Staging migrations, production backup and migration (steps 7, 12, 13) |
+| Vercel (member of team `osamas-team1`) | Preview links, deploy status, error logs (steps 7, 14, 15) |
+| Figma (member of the Omnirent team) | Approved designs (steps 1, 11) |

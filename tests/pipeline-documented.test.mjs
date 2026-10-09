@@ -42,3 +42,24 @@ test("the parallel-work safeguards are still written down", () => {
   assert.match(pipeline, /### Approval between partners/);
   assert.match(pipeline, /up to date with `main`/);
 });
+
+test("CLAUDE.md blocks feature work until every access check passes", () => {
+  const rules = read("CLAUDE.md");
+  assert.match(rules, /## Before any feature work: the setup check/);
+  for (const service of ["GitHub", "Neon", "Vercel", "Figma"]) {
+    assert.match(rules, new RegExp(`\\| ${service} \\|`), `${service} check is missing`);
+  }
+  assert.match(rules, /Do not start the feature/);
+});
+
+test("CLAUDE.md forbids skipping pipeline steps", () => {
+  assert.match(read("CLAUDE.md"), /## No step is skipped/);
+});
+
+test("the partner's start-here file makes his Claude finish setup first", () => {
+  const guide = read("docs/PARTNER-GUIDE.md");
+  assert.match(guide, /## For Claude: read this first/);
+  assert.match(guide, /No feature work until every setup check passes/);
+  const steps = [...guide.matchAll(/^\| (\d+) \|/gm)].map((m) => Number(m[1]));
+  assert.deepEqual(steps, [1, 2, 3, 4, 5, 6, 7, 8]);
+});
