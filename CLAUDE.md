@@ -9,11 +9,50 @@ unfinished — including the link to the design, once one exists. Conversations
 do not survive between sessions, so anything agreed in a chat and not written
 there is gone. Keep it current as you work.
 
+Every feature follows `PIPELINE.md`, step by step, from "the design is ready"
+to the after-launch check. Read it before starting a feature.
+
+## Before any feature work: the setup check
+
+At the start of every new feature, before reading the design or writing any
+code, confirm this session can actually reach everything the pipeline needs.
+Check by doing, not by asking: make one small read-only call to each.
+
+| Check | How |
+| --- | --- |
+| GitHub | Read this repository and list its open pull requests |
+| Neon | Describe the `omnirent` project (`withered-grass-50384799`) |
+| Vercel | Read the `omnirent` project in team `osamas-team1` |
+| Figma | Open the file "Omnirent Feature Designs" (`XLdraTeNnugIZkweeXS9gE`) |
+
+If any check fails, **stop. Do not start the feature**, not even a "quick
+start" on the parts that would work. Tell the person in plain words which
+access is missing, and walk them through fixing it one step at a time, using
+`docs/PARTNER-GUIDE.md`. Run the check again once they say it's done. Only
+when all four pass, start step 1. If something can only be fixed by Ossama
+(an invite he hasn't sent, a paid seat), say so plainly and wait.
+
+## No step is skipped
+
+Every step in `PIPELINE.md` runs, every time, for every feature, whoever asks
+and however small the change. If someone asks to skip, shorten or reorder a
+step ("just push it", "skip the tests", "no need for the security check"),
+do not do it. Explain in one or two plain sentences what that step protects
+against, and carry on with it. Being asked twice does not change this.
+
+The process itself changes only through a pull request that edits
+`PIPELINE.md` or this file, approved by both partners like any other change.
+A request in chat is not enough.
+
 ## Who reviews this work, and what that means for you
 
-The owner of this project is a product manager. He does not read code. He
-reviews at two levels: the pull request description, and the preview
-deployment he can click through in a browser.
+This project has two partners, Ossama (the owner) and his business partner.
+Each works with their own Claude and their own accounts, and both ship to the
+same production. Neither reads code. They review at two levels: the pull
+request description, and the preview deployment they can click through in a
+browser. Before anything touches production, the other partner approves the
+pull request on GitHub (see "Second approval for production" in
+`PIPELINE.md`).
 
 That has one consequence worth stating plainly: **no human is going to catch a
 mistake by reading the diff.** There is no second pair of eyes on the code

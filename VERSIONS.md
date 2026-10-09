@@ -19,6 +19,22 @@ descriptions are: the person reading this does not read code.
 
 ---
 
+## 0.007 — 2026-10-09 21:05 UTC
+
+The way features are built and shipped is now written into the project, so
+Ossama's Claude and his partner's Claude follow exactly the same steps. Every
+screen must come from Claude Design, no step can be skipped, the pre-deploy
+brief now lists any APIs, and every release to the live app needs the other
+partner's approval first (staging doesn't). The partner gets a guided
+onboarding ("Osama Junior") that checks each setup step and ends with a test
+release on staging.
+
+Nothing about the running application changed. No change to the database.
+
+Commit: _recorded after merge_
+
+---
+
 ## 0.006 — 2026-10-07 14:05 UTC
 
 The Ops dashboard now has accounts. Team members sign in at ops.getomnirent.com
