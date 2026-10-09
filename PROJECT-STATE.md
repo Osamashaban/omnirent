@@ -8,7 +8,7 @@ not written here is lost.
 Keep it current. It is a running record, not a document written once at the
 end. Correct it when reality changes rather than appending to it.
 
-Last updated: 2026-10-07.
+Last updated: 2026-10-09.
 
 ---
 
@@ -54,8 +54,13 @@ counts because they are reading different databases.
 
 ## Working agreement
 
-Changes reach `main` through a pull request. The owner approves in chat, and
-the agent then merges. The owner does not click through GitHub.
+Changes reach `main` through a pull request, following the feature pipeline
+in `PIPELINE.md`. Two partners build in parallel, each with their own Claude
+and accounts (agreed 2026-10-09): the requester approves in chat ("deploy",
+then "looks good"), the other partner approves the pull request on GitHub,
+and the agent then merges. Only one feature goes through backup, production
+migration and merge at a time (the `shipping` label). Getting the second
+partner set up is described in `docs/PARTNER-GUIDE.md`.
 
 This puts real weight on the agent: run `npm run typecheck`, `npm run lint`,
 `npm test` and `npm run build` before asking, and describe the change in

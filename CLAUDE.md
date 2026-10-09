@@ -9,11 +9,17 @@ unfinished — including the link to the design, once one exists. Conversations
 do not survive between sessions, so anything agreed in a chat and not written
 there is gone. Keep it current as you work.
 
+Every feature follows `PIPELINE.md`, step by step, from "the design is ready"
+to the after-launch check. Read it before starting a feature.
+
 ## Who reviews this work, and what that means for you
 
-The owner of this project is a product manager. He does not read code. He
-reviews at two levels: the pull request description, and the preview
-deployment he can click through in a browser.
+This project has two partners, Ossama (the owner) and his business partner.
+Each works with their own Claude and their own accounts, and both ship to the
+same production. Neither reads code. They review at two levels: the pull
+request description, and the preview deployment they can click through in a
+browser. Before anything is merged, the other partner approves the pull
+request on GitHub (see `PIPELINE.md`).
 
 That has one consequence worth stating plainly: **no human is going to catch a
 mistake by reading the diff.** There is no second pair of eyes on the code
