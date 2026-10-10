@@ -19,6 +19,18 @@ descriptions are: the person reading this does not read code.
 
 ---
 
+## 0.008 — 2026-10-10 UTC
+
+The partner onboarding and the release approval rules now use Samer's name,
+Ossama's partner, instead of "the partner". Also recorded the commit for
+0.007.
+
+Nothing about the running application changed. No change to the database.
+
+Commit: _recorded after merge_
+
+---
+
 ## 0.007 — 2026-10-09 21:05 UTC
 
 The way features are built and shipped is now written into the project, so
@@ -31,7 +43,7 @@ release on staging.
 
 Nothing about the running application changed. No change to the database.
 
-Commit: _recorded after merge_
+Commit: `4ea01c1`
 
 ---
 

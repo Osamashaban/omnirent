@@ -195,7 +195,7 @@ Approvals**, https://claude.ai/artifact/2Zy4AxAAaRweABu4oM8xQQ.
 - **Ask.** After "looks good", add a document to the page's `releases`
   collection (with the artifact data tool), id `pr-<number>`, with:
   `feature` (plain name), `summary` (one sentence), `requester` and
-  `approver` (`Ossama` or `Partner`), `status: "waiting"`, `prUrl`,
+  `approver` (`Ossama` or `Samer`), `status: "waiting"`, `prUrl`,
   `stagingUrl`, `dbChange` (true if step 13 will run) and `requestedAt`
   (UTC ISO time). Then send the requester the pull request link to pass to
   the other partner, with one sentence on what the feature does.

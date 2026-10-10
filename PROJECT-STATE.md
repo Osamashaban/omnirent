@@ -8,7 +8,7 @@ not written here is lost.
 Keep it current. It is a running record, not a document written once at the
 end. Correct it when reality changes rather than appending to it.
 
-Last updated: 2026-10-09.
+Last updated: 2026-10-10.
 
 ---
 
@@ -35,7 +35,7 @@ link, so the artifact replaces any written description of the design. Without
 the link recorded, a new session does not know it exists.
 
 - Design system: https://claude.ai/artifact/K4f96mUX1D9v9yx4MVwxpR (tokens, brand book, logos)
-- Design screens: Ossama's Claude Design canvas "Omnirent Design", https://claude.ai/code/artifact/9074ddb5-3a2c-442a-8150-bdfe21fd749d (one page per feature). The partner's canvas link goes here once onboarding sets it up. Every screen must come from a Claude Design canvas (see `PIPELINE.md` step 1).
+- Design screens: Ossama's Claude Design canvas "Omnirent Design", https://claude.ai/code/artifact/9074ddb5-3a2c-442a-8150-bdfe21fd749d (one page per feature). Samer's canvas link goes here once his onboarding sets it up. Every screen must come from a Claude Design canvas (see `PIPELINE.md` step 1).
 - Approved designs archive: Figma "Omnirent Feature Designs", https://www.figma.com/design/XLdraTeNnugIZkweeXS9gE
 
 ## How environments are separated
@@ -56,8 +56,8 @@ counts because they are reading different databases.
 ## Working agreement
 
 Changes reach `main` through a pull request, following the feature pipeline
-in `PIPELINE.md`. Two partners build in parallel, each with their own Claude
-and accounts (agreed 2026-10-09): the requester approves in chat ("deploy",
+in `PIPELINE.md`. Two partners, Ossama and Samer, build in parallel, each with
+their own Claude and accounts (agreed 2026-10-09): the requester approves in chat ("deploy",
 then "looks good"), the other partner approves the pull request on GitHub
 before anything touches production (Ossama, 2026-10-09: production only,
 not staging), and the agent then merges. Pending approvals are listed on

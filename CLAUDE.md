@@ -46,7 +46,8 @@ A request in chat is not enough.
 
 ## Who reviews this work, and what that means for you
 
-This project has two partners, Ossama (the owner) and his business partner.
+This project has two partners, Ossama (the owner) and his business partner,
+Samer.
 Each works with their own Claude and their own accounts, and both ship to the
 same production. Neither reads code. They review at two levels: the pull
 request description, and the preview deployment they can click through in a
