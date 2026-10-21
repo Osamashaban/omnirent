@@ -5,6 +5,8 @@
 // so it is remembered on this device (as the design asks).
 // ---------------------------------------------------------------------------
 
+import { arabicTerms } from "./ar-terms.ts";
+
 export type Lang = "ar" | "en";
 export const LANG_COOKIE = "omni_lang";
 
@@ -377,6 +379,8 @@ const ar = {
   typeArchived: (name: string) => `تمت أرشفة "${name}".`,
   typeRestored: (name: string) => `تمت استعادة "${name}".`,
   inUseCount: (n: number) => `${n} عقار`,
+  // Channex types and channel type names, shown in Arabic (display only).
+  term: arabicTerms,
 };
 
 export type Dict = typeof ar;
@@ -742,6 +746,7 @@ const en: Dict = {
   typeArchived: (name: string) => `"${name}" archived.`,
   typeRestored: (name: string) => `"${name}" restored.`,
   inUseCount: (n: number) => `${n} in use`,
+  term: (text: string) => text,
 };
 
 export const DICTS: Record<Lang, Dict> = { ar, en };

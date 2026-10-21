@@ -63,7 +63,7 @@ export function PropertyTypesView({ lang, types }: { lang: Lang; types: TypeRow[
 
   const count = (s: Status) => types.filter((x) => x.status === s).length;
   const q = query.trim().toLowerCase();
-  const rows = types.filter((x) => x.status === tab && (!q || `${x.nameAr} ${x.nameEn} ${x.channexType}`.toLowerCase().includes(q)));
+  const rows = types.filter((x) => x.status === tab && (!q || `${x.nameAr} ${x.nameEn} ${x.channexType} ${t.term(x.channexType)}`.toLowerCase().includes(q)));
   const tabs: [Tab, string][] = [
     ["ACTIVE", t.tabActive],
     ["HIDDEN", t.tabHidden],
@@ -225,18 +225,18 @@ export function PropertyTypesView({ lang, types }: { lang: Lang; types: TypeRow[
                         </div>
                       </td>
                       <td className={td}>
-                        <span dir="ltr" className="rounded-md bg-[#F3F4F6] px-2 py-0.5 font-mono text-[13px]">
-                          {row.channexType}
+                        <span dir="auto" className="rounded-md bg-[#F3F4F6] px-2 py-0.5 font-mono text-[13px]">
+                          {t.term(row.channexType)}
                         </span>
                       </td>
                       <td className={td}>
                         <BillPill t={t} channexType={row.channexType} />
                       </td>
-                      <td className={`${td} text-[#4B5563]`} dir="ltr">
-                        {channelName(row.channexType, row.channelNames, "booking")}
+                      <td className={`${td} text-[#4B5563]`} dir="auto">
+                        {t.term(channelName(row.channexType, row.channelNames, "booking"))}
                       </td>
-                      <td className={`${td} text-[#4B5563]`} dir="ltr">
-                        {channelName(row.channexType, row.channelNames, "airbnb")}
+                      <td className={`${td} text-[#4B5563]`} dir="auto">
+                        {t.term(channelName(row.channexType, row.channelNames, "airbnb"))}
                       </td>
                       <td className={`${td} tabular-nums text-[#4B5563]`}>{row.inUse}</td>
                       <td className={`${td} w-[140px]`}>
@@ -316,7 +316,7 @@ export function PropertyTypesView({ lang, types }: { lang: Lang; types: TypeRow[
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <span className="text-[15px] font-bold">{name(row)}</span>
                   <span className="text-[12px] text-[#6B7280]">
-                    <span dir="ltr">Channex: {row.channexType}</span> · {t.inUseCount(row.inUse)}
+                    <span dir="ltr">Channex: {t.term(row.channexType)}</span> · {t.inUseCount(row.inUse)}
                   </span>
                 </div>
                 <BillPill t={t} channexType={row.channexType} />
@@ -569,8 +569,8 @@ function TypeDrawer({
                   errors.channexType ? "border-[1.5px] border-[#DC2626]" : "border border-[#D1D5DB]"
                 }`}
               >
-                <span dir="ltr" className={chx ? "" : "text-[#9CA3AF]"}>
-                  {chx || t.chooseFrom19}
+                <span dir="auto" className={chx ? "" : "text-[#9CA3AF]"}>
+                  {chx ? t.term(chx) : t.chooseFrom19}
                 </span>
                 {chx && <BillPill t={t} channexType={chx} />}
                 <Chevron className="ms-auto text-[#6B7280]" />
@@ -806,8 +806,8 @@ function ChannexList({ t, value, onPick, onClose }: { t: Dict; value: string; on
                 value === c ? "bg-[#EAF3DE] font-bold" : "bg-transparent font-medium"
               }`}
             >
-              <span dir="ltr" className="flex-1 text-start">
-                {c}
+              <span dir="auto" className="flex-1 text-start">
+                {t.term(c)}
               </span>
               <span className="w-4 font-bold text-[#3B6D11]">{value === c ? "✓" : ""}</span>
             </button>
@@ -821,7 +821,7 @@ function ChannexList({ t, value, onPick, onClose }: { t: Dict; value: string; on
 function ViewDrawer({ t, lang, type, onClose, onEdit }: { t: Dict; lang: Lang; type: TypeRow; onClose: () => void; onEdit: () => void }) {
   const rows: [string, React.ReactNode][] = [
     [t.groupLabel, t.groupNames[type.group]],
-    [t.channexType, <span key="c" dir="ltr" className="font-mono">{type.channexType}</span>],
+    [t.channexType, <span key="c" dir="auto" className="font-mono">{t.term(type.channexType)}</span>],
     [t.rentModeHeading, t.rentModeNames[type.rentMode]],
     [t.colStatus, t.statusNames[type.status]],
     [t.propertiesUsing, String(type.inUse)],
@@ -864,7 +864,7 @@ function ViewDrawer({ t, lang, type, onClose, onEdit }: { t: Dict; lang: Lang; t
               <li key={c.id} className="flex justify-between gap-3 border-b border-[#F3F4F6] py-2 text-[14px]">
                 <span className="text-[#6B7280]">{c.name}</span>
                 <span dir="ltr" className="font-semibold">
-                  {channelName(type.channexType, type.channelNames, c.id)}
+                  {t.term(channelName(type.channexType, type.channelNames, c.id))}
                 </span>
               </li>
             ))}

@@ -27,6 +27,7 @@ import {
 } from "../lib/channex-catalog.ts";
 import { MODULES } from "../lib/modules.ts";
 import { isFlag, isRowId } from "../lib/action-args.ts";
+import { arabicTerms } from "../lib/ar-terms.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const migration = readFileSync(
@@ -244,4 +245,13 @@ test("actions only accept a short text id and a true/false switch", () => {
   assert.equal(isFlag(true), true);
   assert.equal(isFlag(false), true);
   for (const bad of ["yes", "true", 1, 0, null, undefined]) assert.equal(isFlag(bad), false, String(bad));
+});
+
+test("in Arabic, Channex types and channel names show the design's Arabic words", () => {
+  assert.equal(arabicTerms("apartment"), "شقة");
+  assert.equal(arabicTerms("holiday_home"), "بيت عطلات");
+  assert.equal(arabicTerms("Apartment (3)"), "شقة (3)"); // channel code number kept
+  assert.equal(arabicTerms("Holiday Home (5006)"), "بيت عطلات (5006)"); // longest phrase wins over "home"
+  assert.equal(arabicTerms("Trip.com"), "Trip.com"); // unknown words untouched
+  for (const chx of CHANNEX_TYPES) assert.match(arabicTerms(chx), /[؀-ۿ]/, chx);
 });
