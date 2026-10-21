@@ -66,23 +66,26 @@ function SideNav({ user, t, active }: { user: CurrentUser; t: Dict; active: NavK
   if (allowed.length === 0) return <nav aria-label={t.mainMenu} />;
   return (
     <nav aria-label={t.mainMenu} className="flex flex-col gap-1">
-      <div className="flex h-10 items-center gap-2.5 rounded-lg px-3 text-[14px] font-semibold text-[#111827]">
-        <Settings />
-        {t.settings}
-        <Chevron className="ms-auto text-[#6B7280]" />
-      </div>
-      <div className="flex flex-col gap-0.5 ps-7">
-        {allowed.map((l) => (
-          <Link
-            key={l.key}
-            href={l.href}
-            aria-current={active === l.key ? "page" : undefined}
-            className="flex h-9 items-center rounded-lg px-3 text-[14px] font-medium text-[#4B5563] no-underline aria-[current=page]:bg-[#EAF3DE] aria-[current=page]:font-semibold aria-[current=page]:text-[#27500A] hover:bg-[#F3F4F6]"
-          >
-            {l.label}
-          </Link>
-        ))}
-      </div>
+      {/* The arrow opens and closes the group; it starts open on every page. */}
+      <details open className="group">
+        <summary className="flex h-10 cursor-pointer list-none items-center gap-2.5 rounded-lg px-3 text-[14px] font-semibold text-[#111827] hover:bg-[#F3F4F6] [&::-webkit-details-marker]:hidden">
+          <Settings />
+          {t.settings}
+          <Chevron className="ms-auto -rotate-90 text-[#6B7280] transition-transform group-open:rotate-0 rtl:rotate-90 rtl:group-open:rotate-0" />
+        </summary>
+        <div className="mt-1 flex flex-col gap-0.5 ps-7">
+          {allowed.map((l) => (
+            <Link
+              key={l.key}
+              href={l.href}
+              aria-current={active === l.key ? "page" : undefined}
+              className="flex h-9 items-center rounded-lg px-3 text-[14px] font-medium text-[#4B5563] no-underline aria-[current=page]:bg-[#EAF3DE] aria-[current=page]:font-semibold aria-[current=page]:text-[#27500A] hover:bg-[#F3F4F6]"
+            >
+              {l.label}
+            </Link>
+          ))}
+        </div>
+      </details>
     </nav>
   );
 }
