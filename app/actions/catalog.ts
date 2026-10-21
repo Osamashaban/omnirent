@@ -21,6 +21,7 @@ import {
   type PropertyTypeErrors,
 } from "@/lib/property-type-rules";
 import { CHANNELS } from "@/lib/channex-catalog";
+import { isFlag, isRowId } from "@/lib/action-args";
 
 async function requireAccess(module: ModuleKey) {
   const user = await getCurrentUser();
@@ -80,6 +81,7 @@ export async function saveCountry(_prev: CountryFormState, form: FormData): Prom
 
 export async function setCountryVisible(countryId: string, visible: boolean): Promise<{ ok: boolean }> {
   await requireAccess("countries_cities");
+  if (!(isRowId(countryId) && isFlag(visible))) return { ok: false };
   const found = await prisma.country.updateMany({ where: { id: countryId }, data: { visible } });
   done();
   return { ok: found.count === 1 };
@@ -129,6 +131,7 @@ export async function saveCity(_prev: CityFormState, form: FormData): Promise<Ci
 
 export async function setCityVisible(cityId: string, visible: boolean): Promise<{ ok: boolean }> {
   await requireAccess("countries_cities");
+  if (!(isRowId(cityId) && isFlag(visible))) return { ok: false };
   const found = await prisma.city.updateMany({ where: { id: cityId }, data: { visible } });
   done();
   return { ok: found.count === 1 };
@@ -136,6 +139,7 @@ export async function setCityVisible(cityId: string, visible: boolean): Promise<
 
 export async function deleteCity(cityId: string): Promise<{ ok: boolean }> {
   await requireAccess("countries_cities");
+  if (!(isRowId(cityId))) return { ok: false };
   const found = await prisma.city.deleteMany({ where: { id: cityId } });
   done();
   return { ok: found.count === 1 };
@@ -202,6 +206,7 @@ export async function savePropertyType(_prev: PropertyTypeFormState, form: FormD
 // Archive, or restore an archived type to Active.
 export async function setPropertyTypeArchived(typeId: string, archived: boolean): Promise<{ ok: boolean }> {
   await requireAccess("property_types");
+  if (!(isRowId(typeId) && isFlag(archived))) return { ok: false };
   const found = await prisma.propertyType.updateMany({
     where: { id: typeId, status: archived ? { not: "ARCHIVED" } : "ARCHIVED" },
     data: { status: archived ? "ARCHIVED" : "ACTIVE" },

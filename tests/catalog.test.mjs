@@ -26,6 +26,7 @@ import {
   suggestedChannelName,
 } from "../lib/channex-catalog.ts";
 import { MODULES } from "../lib/modules.ts";
+import { isFlag, isRowId } from "../lib/action-args.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const migration = readFileSync(
@@ -231,4 +232,16 @@ test("starting rows match the design: 34 types (16 active), 4 countries (Egypt v
 test("the migration only adds: no drops, deletes or changes to existing tables", () => {
   assert.doesNotMatch(migration, /\b(DROP|TRUNCATE)\b|DELETE FROM/i);
   assert.doesNotMatch(migration, /ALTER TABLE "(User|Role|Module|RoleModule|Session|PasswordResetToken)"/);
+});
+
+// ---------------------------------------------------------------------------
+// Action arguments
+// ---------------------------------------------------------------------------
+
+test("actions only accept a short text id and a true/false switch", () => {
+  assert.equal(isRowId("city_eg_luxor"), true);
+  for (const bad of ["", 7, null, undefined, { id: "x" }, ["x"], "x".repeat(65)]) assert.equal(isRowId(bad), false, String(bad));
+  assert.equal(isFlag(true), true);
+  assert.equal(isFlag(false), true);
+  for (const bad of ["yes", "true", 1, 0, null, undefined]) assert.equal(isFlag(bad), false, String(bad));
 });
