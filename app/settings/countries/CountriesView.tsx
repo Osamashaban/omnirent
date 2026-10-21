@@ -363,7 +363,7 @@ export function CountriesView({ lang, countries, initialIso }: { lang: Lang; cou
           <span className="text-[13px] text-[#4B5563]">{t.phoneCountrySummary(visibleCount, country.cities.length, countryProperties)}</span>
         </div>
         <div className="flex gap-2">
-          <SearchBox value={query} onChange={setQuery} label={t.searchCities} className="flex-1" />
+          <SearchBox value={query} onChange={setQuery} label={t.searchCities} className="flex-1" icon={false} />
           <button
             type="button"
             aria-label={t.addCity}

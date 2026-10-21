@@ -16,25 +16,30 @@ export function SearchBox({
   label,
   placeholder,
   className = "",
+  icon = true,
 }: {
   value: string;
   onChange: (v: string) => void;
   label: string;
   placeholder?: string;
   className?: string;
+  // The phone designs show the search field without the magnifier.
+  icon?: boolean;
 }) {
   return (
     <label className={`relative flex items-center ${className}`}>
-      <span className="pointer-events-none absolute start-3 flex text-[#6B7280]">
-        <Search />
-      </span>
+      {icon && (
+        <span className="pointer-events-none absolute start-3 flex text-[#6B7280]">
+          <Search />
+        </span>
+      )}
       <input
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
         placeholder={placeholder ?? label}
-        className={`${fieldClass} ps-10 text-[14px]`}
+        className={`${fieldClass} ${icon ? "ps-10" : ""} text-[14px]`}
       />
     </label>
   );

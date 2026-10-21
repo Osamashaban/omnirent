@@ -281,7 +281,7 @@ export function PropertyTypesView({ lang, types }: { lang: Lang; types: TypeRow[
       {/* Phone */}
       <div className="flex flex-col gap-3 min-[900px]:hidden">
         <div className="flex gap-2">
-          <SearchBox value={query} onChange={setQuery} label={t.searchTypes} className="flex-1" />
+          <SearchBox value={query} onChange={setQuery} label={t.searchTypes} className="flex-1" icon={false} />
           <button
             type="button"
             aria-label={t.addType}
@@ -792,7 +792,7 @@ function ChannexList({ t, value, onPick, onClose }: { t: Dict; value: string; on
       {groups.map(([title, items, billing]) => (
         <div key={title} role="group" aria-label={title} className="flex flex-col">
           <div className="flex min-h-[34px] items-center gap-2 px-2.5 pt-1.5 text-[12px] font-bold text-[#6B7280]">
-            <span className="flex-1">{title}</span>
+            <span>{title}</span>
             {billing === "unit" ? <Badge tone="lime">{t.perUnit}</Badge> : <Badge tone="blue">{t.perProperty}</Badge>}
           </div>
           {items.map((c) => (
