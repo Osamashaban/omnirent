@@ -179,3 +179,23 @@ site only; app.* hosts redirect those routes to "/". Arabic is the default
   how staging works until Ossama sets up Resend and verifies getomnirent.com.
 - Assumptions to revisit: dates show in Cairo time; signing in lands on
   Settings > Users because there is no Ops home yet.
+
+## Countries & cities and property types
+
+Added 2026-10-21 (branch `properties-iteration-1`), from Claude Design
+iteration 1, version 55. Release 1 of that design is the two Ops settings pages
+only; the broker (vendor) app screens, the Channex connection and listing cost
+come in later releases, in that order as Ossama decides.
+
+- Countries (with cities) and property types are reference lists that
+  properties will point at. Each page is its own module (`countries_cities`,
+  `property_types`). The ops home sends a signed-in user to the first page their
+  role can open; a page they can't open shows a "no access" card, not a 404.
+- Countries start hidden and are switched on when Omnirent opens there (Egypt is
+  on). Hiding or deleting something used by properties asks first / is blocked;
+  usage counts are 0 until a properties table exists.
+- Property types map to one of Channex's 19 property types. The per-channel
+  names (52 channels) are suggested from `lib/channex-catalog.ts`; only names an
+  admin edits are stored. Types are archived, never deleted.
+- Starting rows (4 countries, 20 cities, 34 property types) are inserted by the
+  migration itself, so staging and production start identical.
