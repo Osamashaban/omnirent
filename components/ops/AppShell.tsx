@@ -1,12 +1,13 @@
 // The signed-in Ops dashboard frame: sidebar on desktop, a top bar with a
 // slide-out menu under 900px. The sidebar shows only the modules the signed-in
-// user's role has. Today that is the Settings group (Users), which appears
-// when the role has the "Users and roles" module.
+// user's role has. Today that is the Settings group: Users, Property types and
+// Countries & cities, each shown only when the role has its module.
 
 import Link from "next/link";
 import { signOut } from "@/app/actions/auth";
 import type { CurrentUser } from "@/lib/auth";
 import { canAccess } from "@/lib/access";
+import type { ModuleKey } from "@/lib/modules";
 import type { Dict, Lang } from "@/lib/i18n";
 import { LogoMark, Wordmark } from "./Logo";
 import { LangButton } from "./LangButton";
@@ -14,7 +15,9 @@ import { MobileMenu } from "./MobileMenu";
 import { Chevron, LogOut, Settings } from "./icons";
 import { Initials } from "./ui";
 
-type Props = { user: CurrentUser; lang: Lang; t: Dict; active: "users"; back: string; title: string; children: React.ReactNode };
+export type NavKey = "users" | "property_types" | "countries";
+
+type Props = { user: CurrentUser; lang: Lang; t: Dict; active: NavKey; back: string; title: string; children: React.ReactNode };
 
 export function AppShell({ user, lang, t, active, back, title, children }: Props) {
   const nav = <SideNav user={user} t={t} active={active} />;
@@ -53,24 +56,36 @@ function Brand({ t }: { t: Dict }) {
   );
 }
 
-function SideNav({ user, t, active }: { user: CurrentUser; t: Dict; active: "users" }) {
-  if (!canAccess(user.moduleKeys, "users_roles")) return <nav aria-label={t.mainMenu} />;
+function SideNav({ user, t, active }: { user: CurrentUser; t: Dict; active: NavKey }) {
+  const links: { key: NavKey; module: ModuleKey; href: string; label: string }[] = [
+    { key: "users", module: "users_roles", href: "/settings/users", label: t.usersNav },
+    { key: "property_types", module: "property_types", href: "/settings/property-types", label: t.propertyTypesNav },
+    { key: "countries", module: "countries_cities", href: "/settings/countries", label: t.countriesNav },
+  ];
+  const allowed = links.filter((l) => canAccess(user.moduleKeys, l.module));
+  if (allowed.length === 0) return <nav aria-label={t.mainMenu} />;
   return (
     <nav aria-label={t.mainMenu} className="flex flex-col gap-1">
-      <div className="flex h-10 items-center gap-2.5 rounded-lg px-3 text-[14px] font-semibold text-[#111827]">
-        <Settings />
-        {t.settings}
-        <Chevron className="ms-auto text-[#6B7280]" />
-      </div>
-      <div className="flex flex-col gap-0.5 ps-7">
-        <Link
-          href="/settings/users"
-          aria-current={active === "users" ? "page" : undefined}
-          className="flex h-9 items-center rounded-lg px-3 text-[14px] font-semibold text-[#27500A] no-underline aria-[current=page]:bg-[#EAF3DE] hover:bg-[#F3F4F6]"
-        >
-          {t.usersNav}
-        </Link>
-      </div>
+      {/* The arrow opens and closes the group; it starts open on every page. */}
+      <details open className="group">
+        <summary className="flex h-10 cursor-pointer list-none items-center gap-2.5 rounded-lg px-3 text-[14px] font-semibold text-[#111827] hover:bg-[#F3F4F6] [&::-webkit-details-marker]:hidden">
+          <Settings />
+          {t.settings}
+          <Chevron className="ms-auto -rotate-90 text-[#6B7280] transition-transform group-open:rotate-0 rtl:rotate-90 rtl:group-open:rotate-0" />
+        </summary>
+        <div className="mt-1 flex flex-col gap-0.5 ps-7">
+          {allowed.map((l) => (
+            <Link
+              key={l.key}
+              href={l.href}
+              aria-current={active === l.key ? "page" : undefined}
+              className="flex h-9 items-center rounded-lg px-3 text-[14px] font-medium text-[#4B5563] no-underline aria-[current=page]:bg-[#EAF3DE] aria-[current=page]:font-semibold aria-[current=page]:text-[#27500A] hover:bg-[#F3F4F6]"
+            >
+              {l.label}
+            </Link>
+          ))}
+        </div>
+      </details>
     </nav>
   );
 }

@@ -19,6 +19,23 @@ descriptions are: the person reading this does not read code.
 
 ---
 
+## 0.008 — _stamped at merge_
+
+The Ops dashboard has two new settings pages. Countries & cities lists the
+countries Omnirent works in, each with its cities, dialing code, currency and
+time zone; Egypt is switched on and Saudi Arabia, the UAE and Morocco are ready
+but hidden. Property types lists the 34 kinds of property owners can choose,
+each matched to the type Channex expects and to the name every booking channel
+uses, with a guide to how Channex bills each kind. Both pages work in Arabic
+and English, on desktop and phone, and each is a module that can be given to a
+role.
+
+Adds three new tables with their starting rows. Nothing existing changes.
+
+Commit: _recorded after merge_
+
+---
+
 ## 0.007 — 2026-10-09 21:05 UTC
 
 The way features are built and shipped is now written into the project, so
@@ -31,7 +48,7 @@ release on staging.
 
 Nothing about the running application changed. No change to the database.
 
-Commit: _recorded after merge_
+Commit: `4ea01c1`
 
 ---
 
@@ -44,7 +61,7 @@ see only the modules ticked for them. Forgotten passwords can be reset by
 email, and new team members get an email invite to set their own password.
 Emails reach real inboxes once Resend is set up for getomnirent.com.
 
-Commit: `pending`
+Commit: `5dcfdc4`
 
 ## 0.005 — 2026-10-05 15:09 UTC
 
@@ -54,7 +71,7 @@ ops.getomnirent.com says the Omnirent Operation dashboard is coming soon. Both
 pages carry the logo, the brand green and a short description in English and
 Arabic.
 
-Commit: `pending`
+Commit: `bf8852f`
 
 ---
 
@@ -66,7 +83,7 @@ exact code behind 0.003 can be recovered.
 
 Nothing about the running application changed.
 
-Commit: `pending`
+Commit: `351dcd7`
 
 ---
 
