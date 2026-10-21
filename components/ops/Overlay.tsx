@@ -12,9 +12,11 @@ export function Drawer({
   onClose,
   footer,
   children,
+  widthClass = "min-[900px]:w-[460px]",
 }: {
   title: string;
-  description?: string;
+  description?: React.ReactNode;
+  widthClass?: string;
   closeLabel: string;
   onClose: () => void;
   footer: React.ReactNode;
@@ -28,12 +30,12 @@ export function Drawer({
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="flex h-full w-full flex-col bg-white shadow-[0_20px_50px_rgba(0,0,0,0.25)] min-[900px]:w-[460px]"
+        className={`flex h-full w-full flex-col bg-white shadow-[0_20px_50px_rgba(0,0,0,0.25)] ${widthClass}`}
       >
         <div className="flex items-start gap-3 border-b border-[#E5E7EB] p-5 min-[900px]:p-6">
           <div className="flex flex-1 flex-col gap-1.5">
             <h2 className="m-0 text-[22px] font-bold">{title}</h2>
-            {description && <p className="m-0 text-[14px] leading-[1.6] text-[#4B5563]">{description}</p>}
+            {description && <div className="m-0 text-[14px] leading-[1.6] text-[#4B5563]">{description}</div>}
           </div>
           <button
             type="button"

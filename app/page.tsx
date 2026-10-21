@@ -81,6 +81,8 @@ async function OpsHome() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (canAccess(user.moduleKeys, "users_roles")) redirect("/settings/users");
+  if (canAccess(user.moduleKeys, "property_types")) redirect("/settings/property-types");
+  if (canAccess(user.moduleKeys, "countries_cities")) redirect("/settings/countries");
   const { lang, t } = await getDict();
   const [title, body] =
     user.moduleKeys.length === 0 ? [t.noModulesTitle, t.noModulesBody] : [t.comingSoonTitle, t.comingSoonBody];

@@ -162,3 +162,91 @@ model PasswordResetToken {
 
   @@index([userId, type])
 }
+
+// ---------------------------------------------------------------------------
+// Settings › Countries & cities.
+//
+// The places brokers pick from when they add a property. Brokers only see a
+// country and city when both are visible. The country also sets the
+// property's default currency and time zone. A new country starts hidden, so
+// the team can add its cities before brokers see it.
+// ---------------------------------------------------------------------------
+
+model Country {
+  id     String @id @default(cuid())
+  nameAr String @unique
+  nameEn String @unique
+
+  // ISO 3166 two-letter code, always upper case, e.g. "EG".
+  iso2     String @unique
+  dialCode String // e.g. "+20"
+  currency String // ISO 4217 code, e.g. "EGP"
+  timezone String // IANA time zone, e.g. "Africa/Cairo"
+  visible  Boolean @default(false)
+
+  cities City[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model City {
+  id        String  @id @default(cuid())
+  countryId String
+  country   Country @relation(fields: [countryId], references: [id], onDelete: Restrict)
+  nameAr    String
+  nameEn    String
+  visible   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([countryId, nameAr])
+  @@unique([countryId, nameEn])
+}
+
+// ---------------------------------------------------------------------------
+// Settings › Property types.
+//
+// The names the team picks when adding a property ("Duplex", "Chalet"...).
+// Each one is linked to exactly one of Channex's 19 property types, which is
+// the only value sent to Channex (see lib/channex-catalog.ts). Many Omnirent
+// types can share one Channex type, so new names never clash with Channex.
+// ---------------------------------------------------------------------------
+
+enum PropertyTypeGroup {
+  APARTMENTS // shown to brokers when adding a property
+  HOTELS // not shown to brokers yet; kept for the channel integration
+}
+
+enum RentMode {
+  WHOLE
+  ROOMS
+  BOTH
+}
+
+enum PropertyTypeStatus {
+  ACTIVE // shown when adding a property
+  HIDDEN // switched off, not archived
+  ARCHIVED // gone from lists; can be restored
+}
+
+model PropertyType {
+  id          String             @id @default(cuid())
+  nameAr      String             @unique
+  nameEn      String             @unique
+  group       PropertyTypeGroup  @default(APARTMENTS)
+  channexType String
+  rentMode    RentMode           @default(WHOLE)
+  status      PropertyTypeStatus @default(ACTIVE)
+
+  // What the type is called on each channel, keyed by channel id. Only names
+  // the team changed from the suggestion are stored; the rest are suggested
+  // from the Channex type (lib/channex-catalog.ts).
+  channelNames Json @default("{}")
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
