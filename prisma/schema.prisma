@@ -297,6 +297,10 @@ model Broker {
   invitedBy     User?     @relation("BrokerInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
   deactivatedAt DateTime?
 
+  // The company's group in Channex, made on its first publish. Its
+  // properties go in it.
+  channexGroupId String?
+
   users      BrokerUser[]
   properties Property[]
 
@@ -470,6 +474,18 @@ model Property {
   // Archived properties stay in the list (status "Archived") and keep all data.
   archivedAt DateTime?
 
+  // Channex. Ids are set on the first publish and reused after.
+  channexId       String?
+  channexPolicyId String?
+  // While publishing: the part being sent ("property", "units", "rates",
+  // "policy", "content"). After a failed publish: the part that failed.
+  syncStage       String?
+  // Why the last publish failed: { field?, value?, message? }, shown to the
+  // broker in plain words.
+  syncError       Json?
+  syncStartedAt   DateTime?
+  syncedAt        DateTime?
+
   createdById String?
   createdBy   BrokerUser? @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
@@ -509,6 +525,8 @@ model UnitType {
   // Rooms only: "private" or "shared".
   bathroom   String?
   sortOrder  Int      @default(0)
+  // Channex room type, set on the first publish.
+  channexId  String?
 
   rates RatePlan[]
 
@@ -548,6 +566,9 @@ model RatePlan {
   // Derived rates only: "decrease_percent" or "decrease_amount", and by how much.
   adjustment  String?
   adjustValue Decimal?   @db.Decimal(12, 2)
+
+  // Channex rate plan, set on the first publish.
+  channexId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

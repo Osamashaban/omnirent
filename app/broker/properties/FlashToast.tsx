@@ -16,7 +16,7 @@ export function FlashToast({ closeLabel, children }: { closeLabel: string; child
     window.history.replaceState(null, "", url);
   }, []);
   return open ? (
-    <Toast onClose={close} closeLabel={closeLabel}>
+    <Toast onClose={close} closeLabel={closeLabel} place="content">
       {children}
     </Toast>
   ) : null;

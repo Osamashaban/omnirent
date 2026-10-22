@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { saveProperty } from "@/app/actions/properties";
+import { publishProperty, saveProperty } from "@/app/actions/properties";
 import type { Lang } from "@/lib/i18n";
 import { PROPERTY_DICTS } from "@/lib/property-i18n";
-import { STEP_COUNT, checkStep, type FormErrors, type PropertyForm, type StepContext } from "@/lib/property-rules";
+import { STEP_COUNT, checkStep, pricedUnits, type FormErrors, type PropertyForm, type StepContext } from "@/lib/property-rules";
 import { AlertCircle, Check, Spinner } from "@/components/ops/icons";
 import { secondaryButtonClass, smallPrimaryButtonClass } from "@/components/ops/ui";
 import { StepBasics } from "./StepBasics";
@@ -18,6 +18,7 @@ import { StepTaxes } from "./StepTaxes";
 import { StepContent } from "./StepContent";
 import { StepReview } from "./StepReview";
 import type { StepProps, WizardOptions } from "./types";
+import { PublishDialog } from "../Publish";
 
 type Props = {
   lang: Lang;
@@ -27,13 +28,16 @@ type Props = {
   stepsDone: number;
   startStep: number;
   ratesSaved: boolean;
+  // Channex is set up on this server, so "Save and publish" works.
+  canPublish: boolean;
 };
 
 // The 8-step Add property wizard. "Next" checks the step, saves the whole
 // property and moves on, so a broker can stop at any point and come back.
 // "Save as draft" saves without checking (only a nickname is needed). The
-// last step's "Save and publish" waits for the channel connection.
-export function Wizard({ lang, options, id: initialId, initialForm, stepsDone: initialDone, startStep, ratesSaved: initialRatesSaved }: Props) {
+// last step's "Save and publish" saves, then sends the property to Channex
+// and shows the progress.
+export function Wizard({ lang, options, id: initialId, initialForm, stepsDone: initialDone, startStep, ratesSaved: initialRatesSaved, canPublish }: Props) {
   const p = PROPERTY_DICTS[lang];
   const router = useRouter();
   const [form, setForm] = useState(initialForm);
@@ -43,7 +47,8 @@ export function Wizard({ lang, options, id: initialId, initialForm, stepsDone: i
   const [ratesSaved, setRatesSaved] = useState(initialRatesSaved);
   const [errors, setErrors] = useState<FormErrors>({});
   const [notice, setNotice] = useState<string | null>(null);
-  const [saving, setSaving] = useState<"next" | "draft" | null>(null);
+  const [saving, setSaving] = useState<"next" | "draft" | "publish" | null>(null);
+  const [publishing, setPublishing] = useState<string | null>(null);
   const [saved, setSaved] = useState(Boolean(initialId));
 
   const ctx: StepContext = useMemo(
@@ -126,6 +131,41 @@ export function Wizard({ lang, options, id: initialId, initialForm, stepsDone: i
       }
       setStep(next);
       window.scrollTo({ top: 0 });
+    } catch {
+      setNotice(p.saveFailed);
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  // Saves like "Next", then starts the publish and shows its progress.
+  const publish = async () => {
+    const e = checkStep(step, form, ctx);
+    if (Object.keys(e).length) {
+      setErrors(e);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    setSaving("publish");
+    setNotice(null);
+    try {
+      const saved = await saveProperty({ id, step, mode: "next", form });
+      if (!saved.ok) {
+        if ("errors" in saved) setErrors(saved.errors);
+        else if (saved.error === "signedOut") return router.push("/broker/login");
+        else setNotice(p.saveFailed);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      setForm(saved.form);
+      setId(saved.id);
+      setStepsDone(saved.stepsDone);
+      setSaved(true);
+      const res = await publishProperty(saved.id);
+      if (res.ok) return setPublishing(saved.id);
+      if (res.error === "signedOut") return router.push("/broker/login");
+      setNotice(res.error === "incomplete" ? p.publishIncomplete : res.error === "busy" ? p.publishBusy : p.saveFailed);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
       setNotice(p.saveFailed);
     } finally {
@@ -232,7 +272,7 @@ export function Wizard({ lang, options, id: initialId, initialForm, stepsDone: i
           {step === 7 && <StepContent {...stepProps} />}
           {step === 8 && <StepReview {...stepProps} ctx={ctx} />}
 
-          {step === STEP_COUNT && <p className="m-0 text-[13px] text-[#4B5563]">{p.publishLater}</p>}
+          {step === STEP_COUNT && !canPublish && <p className="m-0 text-[13px] text-[#4B5563]">{p.publishLater}</p>}
 
           <div className="flex items-center gap-3 max-[899px]:fixed max-[899px]:inset-x-0 max-[899px]:bottom-0 max-[899px]:z-30 max-[899px]:border-t max-[899px]:border-[#E5E7EB] max-[899px]:bg-white max-[899px]:p-4">
             {step === 1 ? (
@@ -259,6 +299,11 @@ export function Wizard({ lang, options, id: initialId, initialForm, stepsDone: i
                 {saving === "next" && <Spinner />}
                 {nextLabel}
               </button>
+            ) : canPublish ? (
+              <button type="button" onClick={publish} disabled={saving !== null} className={`${smallPrimaryButtonClass} max-[899px]:flex-1`}>
+                {saving === "publish" && <Spinner />}
+                {p.savePublish}
+              </button>
             ) : (
               <button type="button" disabled title={p.publishLater} className={`${smallPrimaryButtonClass} max-[899px]:flex-1`}>
                 {p.savePublish}
@@ -267,6 +312,7 @@ export function Wizard({ lang, options, id: initialId, initialForm, stepsDone: i
           </div>
         </div>
       </div>
+      {publishing && <PublishDialog lang={lang} propertyId={publishing} counts={{ units: pricedUnits(form).length, rates: pricedUnits(form).reduce((n, { unit }) => n + (unit.rate.derived ? 2 : 1), 0) }} />}
     </div>
   );
 }

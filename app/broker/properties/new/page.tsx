@@ -5,6 +5,7 @@ import { PROPERTY_DICTS } from "@/lib/property-i18n";
 import { defaultNames, wizardOptions } from "@/lib/property-data";
 import { blankForm } from "@/lib/property-rules";
 import { BrokerCloseBar, BrokerMain } from "@/components/broker/BrokerShell";
+import { channexConfigured } from "@/lib/channex";
 import { Wizard } from "../_wizard/Wizard";
 
 export const metadata: Metadata = { title: "Omnirent · Add property" };
@@ -28,6 +29,7 @@ export default async function NewPropertyPage() {
           initialForm={blankForm(names, mainCountry)}
           stepsDone={0}
           startStep={1}
+          canPublish={channexConfigured()}
           ratesSaved={false}
         />
       </BrokerMain>
