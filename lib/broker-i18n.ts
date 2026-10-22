@@ -72,10 +72,6 @@ const ar = {
   deactivated: "هذا الحساب موقوف. تواصل مع فريق Omnirent لإعادة تفعيله.",
   notActivated: "لم تُعيّن كلمة المرور بعد. افتح بريد الدعوة، أو اطلب من فريق Omnirent إرساله مجدداً.",
 
-  signedInTitle: "تم تسجيل الدخول",
-  signedInBody: (name: string) => `مرحباً بعودتك يا ${name}.`,
-  goToProperties: "الذهاب إلى العقارات",
-
   backToSignInArrow: "→ العودة لتسجيل الدخول",
   forgotTitle: "نسيت كلمة المرور؟",
   forgotBody: "أدخل بريدك وسنرسل رابطاً لتعيين كلمة مرور جديدة.",
@@ -225,10 +221,6 @@ const en: BrokerDict = {
   lockedOut: 'Sign-in is locked for 15 minutes after 3 wrong attempts. Use "Forgot password".',
   deactivated: "This account is deactivated. Contact the Omnirent team to reactivate it.",
   notActivated: "You haven’t set your password yet. Open the invite email, or ask the Omnirent team to resend it.",
-
-  signedInTitle: "Signed in",
-  signedInBody: (name) => `Welcome back, ${name}.`,
-  goToProperties: "Go to properties",
 
   backToSignInArrow: "← Back to sign in",
   forgotTitle: "Forgot your password?",
