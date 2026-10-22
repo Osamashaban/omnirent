@@ -169,7 +169,8 @@ const ar = {
   linkedBody: (rooms: number) =>
     `يربط Omnirent التقاويم: حجز الشقة كاملة يغلق الغرف (${rooms}) في نفس التواريخ، وحجز أي غرفة يغلق الشقة كاملة.`,
   linkedArrow: "⇄ حجز أحدهما يغلق الآخر ⇄",
-  unitSummary: (count: number, adults: number, bedrooms: number) => `${count} وحدات · ${adults} بالغين · ${bedrooms} غرف`,
+  unitSummary: (count: number, adults: number, bedrooms: number) =>
+    `${count} ${count === 1 ? "وحدة" : "وحدات"} · ${adults} ${adults === 1 ? "بالغ" : "بالغين"} · ${bedrooms} ${bedrooms === 1 ? "غرفة" : "غرف"}`,
   identical: "الكمية المتطابقة",
   identicalHelp: "الشقق المتطابقة من هذا النوع. اكتب 1 إذا كانت شقة واحدة.",
   removeUnitType: "حذف نوع الوحدة",
@@ -358,7 +359,7 @@ const ar = {
 
   // Property page
   tabs: { overview: "نظرة عامة", units: "الوحدات", rates: "الأسعار", channels: "القنوات" } as Record<string, string>,
-  subtitleUnits: (n: number) => `${n} وحدات`,
+  subtitleUnits: (n: number) => (n === 1 ? "وحدة واحدة" : `${n} وحدات`),
   statUnits: "الوحدات",
   statTypes: (n: number) => (n === 1 ? "نوع واحد" : n === 2 ? "نوعان" : `${n} أنواع`),
   statFrom: "السعر الأساسي من",
@@ -575,7 +576,8 @@ const en: PropertyDict = {
   linkedBody: (rooms) =>
     `Omnirent links the calendars: booking the whole apartment closes all ${rooms} rooms on those dates, and booking any room closes the whole apartment.`,
   linkedArrow: "⇄ booking one closes the other ⇄",
-  unitSummary: (count, adults, bedrooms) => `${count} units · ${adults} adults · ${bedrooms} bedrooms`,
+  unitSummary: (count, adults, bedrooms) =>
+    `${count} ${count === 1 ? "unit" : "units"} · ${adults} ${adults === 1 ? "adult" : "adults"} · ${bedrooms} ${bedrooms === 1 ? "bedroom" : "bedrooms"}`,
   identical: "Identical quantity",
   identicalHelp: "Identical apartments of this type. Use 1 for a single apartment.",
   removeUnitType: "Remove unit type",
