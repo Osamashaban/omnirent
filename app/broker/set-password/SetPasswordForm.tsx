@@ -39,7 +39,8 @@ export function SetPasswordForm({
         <p className="m-0 text-[15px] leading-[1.7] text-[#4B5563]">
           <span className="min-[900px]:hidden">
             {b.setBodyPhoneBefore}
-            <strong>{company}</strong>.
+            <strong>{company}</strong>
+            {b.setBodyPhoneAfter}.
           </span>
           <span className="max-[899px]:hidden">
             {b.setBodyBefore}
@@ -64,11 +65,11 @@ export function SetPasswordForm({
           />
           <span>
             {b.agreeBefore}
-            <a href="https://getomnirent.com" className="font-semibold">
+            <a href="https://getomnirent.com" className="text-inherit no-underline min-[900px]:font-semibold min-[900px]:text-[#3B6D11] min-[900px]:underline">
               {b.terms}
             </a>
             {b.agreeAnd}
-            <a href="https://getomnirent.com" className="font-semibold">
+            <a href="https://getomnirent.com" className="text-inherit no-underline min-[900px]:font-semibold min-[900px]:text-[#3B6D11] min-[900px]:underline">
               {b.privacyPolicy}
             </a>
           </span>

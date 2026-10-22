@@ -44,10 +44,10 @@ export function BrokerAuthShell({
         </main>
         <footer className="hidden gap-4 text-[13px] text-[#6B7280] min-[900px]:flex">
           <span>© 2026 Omnirent</span>
-          <a href="https://getomnirent.com" className="text-[#6B7280]">
+          <a href="https://getomnirent.com" className="text-[#6B7280] underline">
             {b.terms}
           </a>
-          <a href="https://getomnirent.com" className="text-[#6B7280]">
+          <a href="https://getomnirent.com" className="text-[#6B7280] underline">
             {b.privacy}
           </a>
           <span className="ms-auto">
@@ -77,7 +77,7 @@ function LangLink({ lang, b, back }: { lang: Lang; b: BrokerDict; back: string }
       <button
         type="submit"
         lang={lang === "ar" ? "en" : "ar"}
-        className="cursor-pointer border-0 bg-transparent p-0 text-[14px] font-semibold text-[#3B6D11] hover:text-[#27500A] min-[900px]:text-[13px]"
+        className="cursor-pointer border-0 bg-transparent p-0 text-[14px] font-semibold text-[#3B6D11] underline hover:text-[#27500A] min-[900px]:text-[13px]"
       >
         {b.otherLang}
       </button>
@@ -116,7 +116,7 @@ export function BrokerAlert({ tone, children }: { tone: "error" | "warn"; childr
         tone === "error" ? "border border-[#FECACA] bg-[#FEE2E2] text-[#B91C1C]" : "border border-[#FDE68A] bg-[#FEF3C7] text-[#92400E]"
       }`}
     >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="mt-0.5 flex-none">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="mt-0.5 hidden flex-none min-[900px]:block">
         <circle cx="12" cy="12" r="10" />
         <line x1="12" x2="12" y1="8" y2="12" />
         <line x1="12" x2="12.01" y1="16" y2="16" />

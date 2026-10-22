@@ -164,6 +164,16 @@ function FilterBar({ b, counts, filters, onAdd }: { b: BrokerDict; counts: Count
   const [q, setQ] = useState(filters.q);
   const [, startTransition] = useTransition();
   const first = useRef(true);
+  // The phone design has a shorter search hint; a placeholder can't be
+  // switched with CSS, so follow the screen width.
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 899px)");
+    const update = () => setPhone(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   const push = useCallback(
     (next: Partial<Filters>) => {
@@ -226,7 +236,7 @@ function FilterBar({ b, counts, filters, onAdd }: { b: BrokerDict; counts: Count
             value={q}
             onChange={(e) => setQ(e.target.value)}
             aria-label={b.searchBrokers}
-            placeholder={b.searchBrokers}
+            placeholder={phone ? b.searchBrokersPhone : b.searchBrokers}
             className="h-11 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 text-[14px] text-[#111827] outline-none placeholder:text-[#9CA3AF] focus:border-[#639922] focus:ring-2 focus:ring-[#639922]/25 min-[900px]:ps-10"
           />
         </label>
