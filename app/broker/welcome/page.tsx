@@ -50,8 +50,7 @@ export default async function BrokerWelcomePage({ searchParams }: Props) {
           </Link>
         </li>
         <li>
-          {/* The calendar isn't built yet, so this step is not a link for now. */}
-          <div className={stepClass}>
+          <Link href="/broker/calendar" className={stepClass}>
             <span className={iconClass}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <rect width="18" height="18" x="3" y="4" rx="2" />
@@ -64,7 +63,7 @@ export default async function BrokerWelcomePage({ searchParams }: Props) {
               <span className="text-[15px] font-bold">{b.step2}</span>
               <span className="text-[13px] text-[#4B5563]">{b.step2Body}</span>
             </span>
-          </div>
+          </Link>
         </li>
         <li>
           <div className={stepClass}>
