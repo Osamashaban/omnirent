@@ -1,18 +1,30 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
-import { requireModule } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { canAccess } from "@/lib/access";
 import { getDict } from "@/lib/lang";
 import { moduleDescription, moduleName } from "@/lib/i18n";
 import { roleIsProtected } from "@/lib/user-rules";
 import { AppShell } from "@/components/ops/AppShell";
+import { NoAccess } from "@/components/ops/PageStates";
 import { SettingsHeader } from "@/components/ops/SettingsHeader";
 import { RolesView } from "./RolesView";
 
 export const metadata: Metadata = { title: "Omnirent Ops · Roles" };
 
 export default async function RolesPage() {
-  const me = await requireModule("users_roles");
+  const me = await getCurrentUser();
+  if (!me) redirect("/login");
   const { lang, t } = await getDict();
+
+  if (!canAccess(me.moduleKeys, "users_roles")) {
+    return (
+      <AppShell user={me} lang={lang} t={t} active="users" back="/settings/roles" title={t.usersAndRoles}>
+        <NoAccess t={t} roleName={me.roleName} />
+      </AppShell>
+    );
+  }
 
   const [roles, modules, userCount] = await Promise.all([
     prisma.role.findMany({

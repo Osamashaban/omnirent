@@ -680,9 +680,12 @@ function BrokerForm({
                 inputMode="numeric"
                 dir="ltr"
                 defaultValue={values.units}
+                aria-invalid={errors.units ? true : undefined}
+                aria-describedby={errors.units ? "bk_units_error" : undefined}
                 placeholder="10"
                 className={`${fieldClass} text-start`}
               />
+              {errors.units && <FieldError id="bk_units_error">{b.errUnits}</FieldError>}
             </div>
           </div>
           <div className="flex flex-col gap-1.5">

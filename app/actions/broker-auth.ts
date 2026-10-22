@@ -212,6 +212,9 @@ export async function brokerResetPassword(_prev: BrokerPasswordState, form: Form
       data: { passwordHash: await hashPassword(String(form.get("password"))) },
     }),
     prisma.brokerToken.update({ where: { id: token.id }, data: { usedAt: now } }),
+    // The lock message tells a locked-out broker to use "Forgot password", so
+    // a new password lifts the lock straight away.
+    prisma.brokerAuthAttempt.create({ data: { kind: "SIGN_IN_OK", email: token.brokerUser.email, ip: null } }),
   ]);
   // Saving a new password signs the broker out on every other device.
   await signOutBrokerUserEverywhere(token.brokerUserId);

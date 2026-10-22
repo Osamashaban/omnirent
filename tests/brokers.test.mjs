@@ -150,3 +150,30 @@ test("migration adds the Brokers module, gives it to Super Admin, and only adds"
   assert.match(migration, /CREATE UNIQUE INDEX "BrokerUser_email_key"/);
   assert.match(migration, /CREATE UNIQUE INDEX "BrokerToken_tokenHash_key"/);
 });
+
+// Found in the full staging test (2026-10-22).
+test("a new password from Forgot password lifts the sign-in lock", () => {
+  const source = readFileSync(join(repoRoot, "app", "actions", "broker-auth.ts"), "utf8");
+  const reset = source.slice(source.indexOf("export async function brokerResetPassword"));
+  assert.match(reset, /brokerAuthAttempt\.create\(\{ data: \{ kind: "SIGN_IN_OK", email: token\.brokerUser\.email/);
+  // And a success after the failures is what unlocks.
+  const at = (m) => new Date(Date.UTC(2026, 9, 22, 12, m));
+  const failed = (m) => ({ kind: "SIGN_IN_FAILED", createdAt: at(m) });
+  assert.equal(signInLock([failed(1), failed(2), failed(3)], at(4)).locked, true);
+  assert.equal(signInLock([failed(1), failed(2), failed(3), { kind: "SIGN_IN_OK", createdAt: at(4) }], at(5)).locked, false);
+});
+
+test("set-password and reset-password keep Confirm password after an error", () => {
+  for (const file of ["app/broker/set-password/SetPasswordForm.tsx", "app/broker/reset-password/ResetForm.tsx"]) {
+    const source = readFileSync(join(repoRoot, file), "utf8");
+    assert.ok(!/<form\s+action=\{/.test(source), `${file} uses <form action>, which React resets after submit`);
+    assert.match(source, /onSubmit=\{submitKeepingValues\(action\)\}/, file);
+  }
+});
+
+test("Add broker points out an unusable unit count instead of dropping it", () => {
+  const source = readFileSync(join(repoRoot, "app", "actions", "brokers.ts"), "utf8");
+  assert.match(source, /if \(values\.units && parseApproxUnits\(values\.units\) === null\) errors\.units = "invalid";/);
+  assert.equal(parseApproxUnits("-5"), null);
+  assert.ok(BROKER_DICTS.en.errUnits && BROKER_DICTS.ar.errUnits);
+});

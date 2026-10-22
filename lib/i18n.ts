@@ -655,7 +655,8 @@ const en: Dict = {
   hideCityBody: (n: number, name: string) => `${n} properties in ${name} keep it, but brokers can’t pick ${name} for new properties.`,
   hideCity: "Hide city",
   cantDeleteNamed: (name: string) => `Can’t delete ${name}`,
-  cantDeleteCityBody: (n: number) => `${n} properties use this city. Hide it instead so it stops appearing for new properties.`,
+  cantDeleteCityBody: (n: number) =>
+    `${n === 1 ? "1 property uses" : `${n} properties use`} this city. Hide it instead so it stops appearing for new properties.`,
   deleteNamedQ: (name: string) => `Delete ${name}?`,
   deleteCityBody: "No property uses it. This can’t be undone.",
   deleteCity: "Delete city",
@@ -697,7 +698,7 @@ const en: Dict = {
   editTypeBody: (name: string, n: number) => `${name} · used by ${n} properties`,
   inUseNote: (n: number) => `Used by ${n} properties. Renaming is safe. Changing the Channex type needs a confirmation because it can change billing.`,
   fixFields: "Fix the highlighted fields",
-  fieldsNeedChanges: (n: number) => `${n} field(s) need changes before you can save.`,
+  fieldsNeedChanges: (n: number) => `${n === 1 ? "1 field needs" : `${n} fields need`} changes before you can save.`,
   typeExists: (name: string) => `"${name}" already exists.`,
   typeExistsEn: (name: string) => `"${name}" already exists. Pick another name.`,
   chooseChannexType: "Choose a Channex type. A type can’t be saved without it.",

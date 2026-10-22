@@ -198,3 +198,30 @@ test("link secrets are random and only their hash is stored", () => {
   assert.equal(hashSecret(secret), hashSecret(secret));
   assert.ok(!hashSecret(secret).includes(secret));
 });
+
+// React clears a <form action={...}> after every submit. On Add user that left
+// the role box showing Super Admin while the chosen role was still remembered,
+// so fixing a typo and sending invited a Super Admin. Forms with a role picker
+// or module ticks must submit without that reset.
+test("Add user and role forms keep the chosen role and modules after an error", () => {
+  for (const file of ["app/settings/users/UsersView.tsx", "app/settings/roles/RolesView.tsx"]) {
+    const source = readFileSync(join(repoRoot, file), "utf8");
+    assert.ok(!/<form\s+action=\{/.test(source), `${file} uses <form action>, which React resets after submit`);
+    assert.match(source, /<form onSubmit=\{submitKeepingValues\(action\)\}/, file);
+  }
+});
+
+test("Users and Roles show the no-access page, like the other modules, instead of a bare 404", () => {
+  for (const file of ["app/settings/users/page.tsx", "app/settings/roles/page.tsx"]) {
+    const source = readFileSync(join(repoRoot, file), "utf8");
+    assert.match(source, /if \(!canAccess\(me\.moduleKeys, "users_roles"\)\)/, file);
+    assert.match(source, /<NoAccess t=\{t\} roleName=\{me\.roleName\} \/>/, file);
+  }
+});
+
+test("counts in messages use the right singular", () => {
+  assert.match(DICTS.en.cantDeleteCityBody(1), /^1 property uses this city/);
+  assert.match(DICTS.en.cantDeleteCityBody(3), /^3 properties use this city/);
+  assert.match(DICTS.en.fieldsNeedChanges(1), /^1 field needs/);
+  assert.match(DICTS.en.fieldsNeedChanges(2), /^2 fields need/);
+});

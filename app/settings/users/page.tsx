@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
-import { requireModule } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { canAccess } from "@/lib/access";
 import { getDict } from "@/lib/lang";
 import { formatLastLogin } from "@/lib/dates";
 import { moduleName } from "@/lib/i18n";
 import { SUPER_ADMIN_ROLE_ID } from "@/lib/modules";
 import { AppShell } from "@/components/ops/AppShell";
+import { NoAccess } from "@/components/ops/PageStates";
 import { SettingsHeader } from "@/components/ops/SettingsHeader";
 import { UsersView, type UserRow } from "./UsersView";
 
@@ -16,8 +19,17 @@ type Props = { searchParams: Promise<{ q?: string; role?: string; status?: strin
 const STATUSES = ["ACTIVE", "INVITED", "DEACTIVATED"] as const;
 
 export default async function UsersPage({ searchParams }: Props) {
-  const me = await requireModule("users_roles");
+  const me = await getCurrentUser();
+  if (!me) redirect("/login");
   const [{ lang, t }, params] = await Promise.all([getDict(), searchParams]);
+
+  if (!canAccess(me.moduleKeys, "users_roles")) {
+    return (
+      <AppShell user={me} lang={lang} t={t} active="users" back="/settings/users" title={t.usersAndRoles}>
+        <NoAccess t={t} roleName={me.roleName} />
+      </AppShell>
+    );
+  }
 
   const [users, roles] = await Promise.all([
     prisma.user.findMany({ include: { role: true }, orderBy: { name: "asc" } }),
