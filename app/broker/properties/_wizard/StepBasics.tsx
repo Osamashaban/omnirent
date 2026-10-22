@@ -57,7 +57,7 @@ export function StepBasics({ form, update, errors, p, lang, options, ratesSaved 
           <div role="radiogroup" aria-label={p.propertyType} className="grid grid-cols-2 gap-2 min-[900px]:grid-cols-6">
             {mostUsed.map((t, i) => (
               <div key={t.id} className={i >= 4 ? "max-[899px]:hidden" : ""}>
-                <RadioCard name="typeId" checked={form.typeId === t.id} onChange={() => set({ typeId: t.id })} label={typeName(t)} />
+                <RadioCard name="typeId" checked={form.typeId === t.id} onChange={() => set({ typeId: t.id })} label={typeName(t)} compact />
               </div>
             ))}
           </div>

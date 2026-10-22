@@ -5,7 +5,12 @@
 // properties: an id from another company is treated as not found.
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
+import { channexConfigured } from "@/lib/channex";
+import { pushRestrictions } from "@/lib/channex-ari";
+import { SYNC_STALE_MS, isSyncStage, readSyncError, sellWindow, type SyncError, type SyncStage } from "@/lib/channex-payload";
+import { runPublish } from "@/lib/channex-sync";
 import { getCurrentBroker } from "@/lib/broker-auth";
 import { isRowId } from "@/lib/action-args";
 import { defaultNames, loadPropertyInclude, stepContext } from "@/lib/property-data";
@@ -15,6 +20,7 @@ import {
   checkStep,
   cleanForm,
   copyNickname,
+  firstIncompleteStep,
   formFromStored,
   readForm,
   type FormErrors,
@@ -137,11 +143,82 @@ export async function saveProperty(input: { id: string | null; step: number; mod
 
 export type RowResult = { ok: true; id?: string } | { ok: false };
 
+export type SyncState = {
+  status: "DRAFT" | "SYNCING" | "SYNCED" | "SYNC_FAILED";
+  stage: SyncStage | null;
+  error: SyncError | null;
+};
+
+// "Save and publish": sends the property to Channex in the background. The
+// broker can stay and watch (syncState), or leave. A property is only
+// published once every step is complete, and one publish runs at a time.
+export async function publishProperty(propertyId: string): Promise<{ ok: true } | { ok: false; error: "signedOut" | "notFound" | "incomplete" | "busy" | "unavailable" }> {
+  const current = await getCurrentBroker();
+  if (!current) return { ok: false, error: "signedOut" };
+  if (!isRowId(propertyId)) return { ok: false, error: "notFound" };
+  if (!channexConfigured()) return { ok: false, error: "unavailable" };
+  const property = await prisma.property.findFirst({ where: { id: propertyId, brokerId: current.broker.id, archivedAt: null }, include: loadPropertyInclude });
+  if (!property) return { ok: false, error: "notFound" };
+  const names = await defaultNames();
+  if (firstIncompleteStep(formFromStored(property, names), await stepContext(property.propertyTypeId)) !== null) return { ok: false, error: "incomplete" };
+
+  // Only one publish at a time; one that went quiet long ago may be replaced.
+  const now = new Date();
+  const claimed = await prisma.property.updateMany({
+    where: {
+      id: property.id,
+      OR: [{ status: { not: "SYNCING" } }, { syncStartedAt: null }, { syncStartedAt: { lt: new Date(now.getTime() - SYNC_STALE_MS) } }],
+    },
+    data: { status: "SYNCING", syncStage: "property", syncStartedAt: now, stepsDone: 8 },
+  });
+  if (claimed.count !== 1) return { ok: false, error: "busy" };
+  // No page refresh here: the progress dialog follows the publish and opens
+  // the property page when it ends.
+  after(() => runPublish(property.id));
+  return { ok: true };
+}
+
+// Where a publish has got to, for the progress list.
+export async function syncState(propertyId: string): Promise<SyncState | null> {
+  const current = await getCurrentBroker();
+  if (!current || !isRowId(propertyId)) return null;
+  const p = await prisma.property.findFirst({
+    where: { id: propertyId, brokerId: current.broker.id },
+    select: { status: true, syncStage: true, syncError: true, syncStartedAt: true },
+  });
+  if (!p) return null;
+  // A publish that stopped without a word (the server was restarted) counts
+  // as failed, so the broker can retry.
+  if (p.status === "SYNCING" && (!p.syncStartedAt || Date.now() - p.syncStartedAt.getTime() > SYNC_STALE_MS)) {
+    const error: SyncError = { kind: "unreachable" };
+    await prisma.property.updateMany({ where: { id: propertyId, status: "SYNCING" }, data: { status: "SYNC_FAILED", syncError: error } });
+    return { status: "SYNC_FAILED", stage: isSyncStage(p.syncStage) ? p.syncStage : "property", error };
+  }
+  return { status: p.status, stage: isSyncStage(p.syncStage) ? p.syncStage : null, error: readSyncError(p.syncError) };
+}
+
 // Archived properties stay in the list with the "Archived" status and keep all
-// their data. Nothing is published yet, so no channel needs closing.
+// their data. A published property first stops selling on every channel:
+// all its rates are closed for the days Channex keeps open.
 export async function archiveProperty(propertyId: string): Promise<RowResult> {
   const current = await getCurrentBroker();
   if (!current || !isRowId(propertyId)) return { ok: false };
+  const property = await prisma.property.findFirst({
+    where: { id: propertyId, brokerId: current.broker.id, archivedAt: null },
+    select: { channexId: true, unitTypes: { select: { rates: { where: { parentId: null }, select: { channexId: true } } } } },
+  });
+  if (!property) return { ok: false };
+  if (property.channexId) {
+    // Rates that follow a standard rate close with it.
+    const rates = property.unitTypes.flatMap((u) => u.rates.map((r) => r.channexId)).filter((id): id is string => Boolean(id));
+    const window = sellWindow(new Date());
+    try {
+      await pushRestrictions(rates.map((id) => ({ property_id: property.channexId!, rate_plan_id: id, ...window, stop_sell: true })));
+    } catch (err) {
+      console.error("Closing the property on Channex failed", err);
+      return { ok: false };
+    }
+  }
   const done = await prisma.property.updateMany({
     where: { id: propertyId, brokerId: current.broker.id, archivedAt: null },
     data: { archivedAt: new Date() },

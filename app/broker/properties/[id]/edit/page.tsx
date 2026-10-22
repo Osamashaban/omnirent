@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireBroker } from "@/lib/broker-auth";
 import { getLang } from "@/lib/lang";
 import { prisma } from "@/lib/db";
@@ -7,6 +7,7 @@ import { PROPERTY_DICTS } from "@/lib/property-i18n";
 import { defaultNames, loadPropertyInclude, wizardOptions } from "@/lib/property-data";
 import { STEP_COUNT, formFromStored } from "@/lib/property-rules";
 import { BrokerCloseBar, BrokerMain } from "@/components/broker/BrokerShell";
+import { channexConfigured } from "@/lib/channex";
 import { Wizard } from "../../_wizard/Wizard";
 
 export const metadata: Metadata = { title: "Omnirent · Edit property" };
@@ -18,8 +19,10 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ step?: s
 export default async function EditPropertyPage({ params, searchParams }: Props) {
   const current = await requireBroker();
   const [{ id }, query, lang] = await Promise.all([params, searchParams, getLang()]);
-  const property = await prisma.property.findFirst({ where: { id, brokerId: current.broker.id, archivedAt: null }, include: loadPropertyInclude });
+  const property = await prisma.property.findFirst({ where: { id, brokerId: current.broker.id }, include: loadPropertyInclude });
   if (!property) notFound();
+  // An archived property can't be edited: show its page instead.
+  if (property.archivedAt) redirect(`/broker/properties/${property.id}`);
   const p = PROPERTY_DICTS[lang];
   const [options, names] = await Promise.all([wizardOptions(property.propertyTypeId), defaultNames()]);
   const reachable = Math.min(STEP_COUNT, property.stepsDone + 1);
@@ -36,6 +39,7 @@ export default async function EditPropertyPage({ params, searchParams }: Props) 
           initialForm={formFromStored(property, names)}
           stepsDone={property.stepsDone}
           startStep={startStep}
+          canPublish={channexConfigured()}
           ratesSaved={property.stepsDone >= 4}
         />
       </BrokerMain>

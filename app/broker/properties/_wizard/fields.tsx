@@ -160,6 +160,7 @@ export function RadioCard({
   label,
   description,
   disabled,
+  compact = false,
 }: {
   name: string;
   checked: boolean;
@@ -167,17 +168,19 @@ export function RadioCard({
   label: string;
   description?: string;
   disabled?: boolean;
+  // The tighter card of the property type picker, six to a row.
+  compact?: boolean;
 }) {
   return (
     <label
-      className={`flex min-h-[60px] items-center gap-3 rounded-[10px] px-3.5 py-3 ${
+      className={`flex min-h-[60px] min-w-0 items-center rounded-[10px] ${compact ? "gap-2.5 p-3" : "gap-3 px-3.5 py-3"} ${
         checked ? "border-[1.5px] border-[#639922] bg-[#F7FBF1]" : "border border-[#E5E7EB] bg-white"
       } ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
     >
       <input type="radio" name={name} checked={checked} disabled={disabled} onChange={onChange} className="sr-only" />
       <span
         aria-hidden="true"
-        className={`h-5 w-5 flex-none rounded-full ${checked ? "border-[6px] border-[#639922]" : "border-[1.5px] border-[#9CA3AF]"}`}
+        className={`${compact ? "h-[18px] w-[18px]" : "h-5 w-5"} flex-none rounded-full ${checked ? "border-[6px] border-[#639922]" : "border-[1.5px] border-[#9CA3AF]"}`}
       />
       <span className="flex min-w-0 flex-col">
         <span className="text-[14px] font-semibold leading-[1.3] text-[#111827]">{label}</span>
