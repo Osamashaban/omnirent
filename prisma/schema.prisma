@@ -76,6 +76,8 @@ model User {
   invitedBy   User?     @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
   invited     User[]    @relation("InvitedBy")
 
+  brokersInvited Broker[] @relation("BrokerInvitedBy")
+
   sessions Session[]
   tokens   PasswordResetToken[]
 
@@ -198,6 +200,8 @@ model City {
   nameEn    String
   visible   Boolean @default(true)
 
+  brokers Broker[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -249,4 +253,128 @@ model PropertyType {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Brokers: the companies that list their properties on Omnirent, and the
+// people who sign in to the broker dashboard (app.getomnirent.com) for them.
+//
+// Brokers never sign up themselves. Ops adds a broker after the intro call
+// (Ops › Brokers), which creates the company and its first person, and emails
+// that person a link to set their password.
+//
+// Brokers are kept apart from Ops users on purpose: their own sessions,
+// tokens and cookie, so a broker can never reach an Ops page and an Ops
+// session never counts as a broker.
+// ---------------------------------------------------------------------------
+
+enum BrokerStatus {
+  ACTIVE
+  DEACTIVATED // nobody at the company can sign in; data kept; can be reactivated
+}
+
+enum BrokerUserStatus {
+  INVITED // has not set a password yet ("Invite expired" once the link runs out)
+  ACTIVE
+  DEACTIVATED
+}
+
+model Broker {
+  id          String       @id @default(cuid())
+  companyName String
+  mainCityId  String
+  mainCity    City         @relation(fields: [mainCityId], references: [id], onDelete: Restrict)
+  approxUnits Int?
+  // From the intro call. Ops only: never shown to the broker.
+  notes       String?
+  status      BrokerStatus @default(ACTIVE)
+
+  invitedById   String?
+  invitedBy     User?     @relation("BrokerInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+  deactivatedAt DateTime?
+
+  users BrokerUser[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BrokerUser {
+  id       String @id @default(cuid())
+  brokerId String
+  broker   Broker @relation(fields: [brokerId], references: [id], onDelete: Restrict)
+  name     String
+
+  // Always stored in lower case. What the broker signs in with.
+  email String @unique
+
+  // E.164, e.g. "+201005552841".
+  mobile String
+
+  // Never the password itself (see lib/password.ts). Empty until the invite
+  // is accepted.
+  passwordHash String?
+
+  status BrokerUserStatus @default(INVITED)
+
+  invitedAt   DateTime?
+  activatedAt DateTime?
+  lastLoginAt DateTime?
+
+  sessions BrokerSession[]
+  tokens   BrokerToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([brokerId])
+}
+
+// One row per signed-in browser, like Session for Ops users.
+model BrokerSession {
+  id           String     @id @default(cuid())
+  tokenHash    String     @unique
+  brokerUserId String
+  brokerUser   BrokerUser @relation(fields: [brokerUserId], references: [id], onDelete: Cascade)
+  expiresAt    DateTime
+  userAgent    String?
+  createdAt    DateTime   @default(now())
+
+  @@index([brokerUserId])
+}
+
+// Single-use email links for brokers: invite (7 days) and reset (60 minutes).
+model BrokerToken {
+  id           String     @id @default(cuid())
+  type         TokenType
+  brokerUserId String
+  brokerUser   BrokerUser @relation(fields: [brokerUserId], references: [id], onDelete: Cascade)
+  tokenHash    String     @unique
+  expiresAt    DateTime
+  usedAt       DateTime?
+  requestIp    String?
+  userAgent    String?
+  createdAt    DateTime   @default(now())
+
+  @@index([brokerUserId, type])
+}
+
+enum BrokerAuthKind {
+  SIGN_IN_FAILED
+  SIGN_IN_OK
+  RESET_REQUEST
+}
+
+// Every broker sign-in attempt and reset request, by email and address. The
+// lockout and rate limits count these rows (see lib/broker-rules.ts), so an
+// email with no account is treated exactly like one with an account.
+model BrokerAuthAttempt {
+  id        String         @id @default(cuid())
+  kind      BrokerAuthKind
+  email     String
+  ip        String?
+  createdAt DateTime       @default(now())
+
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
 }

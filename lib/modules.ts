@@ -14,6 +14,7 @@ export const MODULES = [
   { key: "users_roles", name: "Users and roles" },
   { key: "property_types", name: "Property types" },
   { key: "countries_cities", name: "Countries and cities" },
+  { key: "brokers", name: "Brokers" },
 ] as const;
 
 export type ModuleKey = (typeof MODULES)[number]["key"];
