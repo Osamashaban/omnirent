@@ -5,10 +5,12 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { OPS_TIME_ZONE } from "./dates";
+import { channexConfigured } from "./channex";
 import type { Lang } from "./i18n";
 import {
   BLOCK_REASONS,
   buildAri,
+  dateRange,
   isEmptyOverride,
   nightOf,
   overrideKey,
@@ -283,9 +285,9 @@ export async function restoreNights(
   );
 }
 
-// Channex values per property, for the properties already on Channex. Until
-// properties are published to Channex (the "Save and publish" release), no
-// property has Channex ids and nothing is sent.
+// Channex values per property, for the properties already on Channex (where a
+// Channex key is set). Unit types added since the last publish have no
+// Channex ids yet and are left out until the next publish.
 async function ariFor(tx: Tx, nights: (Target & { override: Override | null })[]): Promise<Record<string, AriValues>> {
   const idsByProperty = await channexIds(
     tx,
@@ -302,9 +304,47 @@ async function ariFor(tx: Tx, nights: (Target & { override: Override | null })[]
   return out;
 }
 
-// The Channex ids of properties already published to Channex.
-// TODO(channex-publish): read Property.channexId, UnitType.channexId and the
-// standard RatePlan.channexId once that release's migration is in.
-async function channexIds(_tx: Tx, _propertyIds: string[]): Promise<Map<string, ChannexIds>> {
-  return new Map();
+// The Channex ids of properties already published to Channex: the property,
+// each unit type's room type and its standard rate plan.
+async function channexIds(tx: Tx, propertyIds: string[]): Promise<Map<string, ChannexIds>> {
+  if (!channexConfigured() || !propertyIds.length) return new Map();
+  const rows = await tx.property.findMany({
+    where: { id: { in: propertyIds }, channexId: { not: null } },
+    select: {
+      id: true,
+      channexId: true,
+      unitTypes: { select: { id: true, channexId: true, rates: { where: { parentId: null }, orderBy: { createdAt: "asc" }, select: { channexId: true } } } },
+    },
+  });
+  const out = new Map<string, ChannexIds>();
+  for (const p of rows) {
+    const ids: ChannexIds = { propertyId: p.channexId!, roomTypes: {}, ratePlans: {} };
+    for (const u of p.unitTypes) {
+      if (u.channexId) ids.roomTypes[u.id] = u.channexId;
+      const rate = u.rates[0]?.channexId;
+      if (rate) ids.ratePlans[u.id] = rate;
+    }
+    out.set(p.id, ids);
+  }
+  return out;
+}
+
+// Every night of one published property from `from` to `to`, as Channex
+// values: the calendar's changes on top of the unit types' defaults. A
+// publish sends these right after the rooms and rates are made, so the
+// channels show what the calendar shows (and a new unit type opens all its
+// units for sale).
+export async function calendarAri(propertyId: string, from: string, to: string): Promise<AriValues> {
+  const rows = await prisma.unitType.findMany({ where: { propertyId }, orderBy: { sortOrder: "asc" }, include: typeInclude });
+  const types = rows.map(toCalType).filter((t): t is CalTypeView => t !== null);
+  const ids = (await channexIds(prisma, [propertyId])).get(propertyId);
+  if (!ids || !types.length) return { restrictions: [], availability: [] };
+  const days = await prisma.calendarDay.findMany({
+    where: { unitTypeId: { in: types.map((t) => t.id) }, date: { gte: new Date(from), lte: new Date(to) } },
+  });
+  const stored = new Map(days.map((d) => [overrideKey(d.unitTypeId, d.date.toISOString().slice(0, 10)), rowToOverride(d)]));
+  const nights = types.flatMap((type) =>
+    dateRange(from, to).map((date) => ({ type, date, night: nightOf(type, date, stored.get(overrideKey(type.id, date))) })),
+  );
+  return buildAri(ids, nights);
 }

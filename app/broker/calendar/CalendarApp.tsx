@@ -28,7 +28,7 @@ import { currencyLabel, formatMoney } from "@/lib/property-rules";
 import { AlertCircle, Chevron, Info, Plus, Search } from "@/components/ops/icons";
 import { CalendarIcon, ChevronEnd, ChevronStart, Sliders } from "@/components/broker/property-icons";
 import { smallPrimaryButtonClass } from "@/components/ops/ui";
-import { CalendarToast, Corners, SyncPill, gridLook, monthLook, num, type SyncState, type ToastState } from "./parts";
+import { CalendarToast, Corners, SyncPill, gridLook, monthLook, num, plus, type SyncState, type ToastState } from "./parts";
 import { EditPanel, PhoneEditSheet, type PanelForm } from "./EditPanel";
 import { BulkEdit } from "./BulkEdit";
 
@@ -70,10 +70,15 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
   const mType = types.find((x) => x.id === mTypeId) ?? types[0];
 
   const [sel, setSel] = useState<Sel | null>(null);
-  const [selecting, setSelecting] = useState(false);
+  // The selection while the mouse button is down. Kept outside React state so
+  // a quick click (down and up before a re-render) still opens the panel.
+  const drag = useRef<Sel | null>(null);
   const [panel, setPanel] = useState(false);
   const [form, setForm] = useState<PanelForm>({ ...blankSpec(), reason: "owner" });
   const [pErr, setPErr] = useState("");
+  // What a single night's panel opened with. Values left as they were aren't
+  // saved, so the night keeps following the unit type's own price and min stay.
+  const [prefill, setPrefill] = useState({ value: "", min: "" });
   const [bulk, setBulk] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sending, setSending] = useState(0);
@@ -118,6 +123,7 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
         next.min = String(n.minStay);
       }
       setForm(next);
+      setPrefill({ value: next.value, min: next.min });
       setPErr("");
       setPanel(true);
     },
@@ -125,13 +131,14 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
   );
 
   // Finishing a drag anywhere on the page opens the side panel.
-  const live = useRef({ sel, selecting, openPanel });
-  live.current = { sel, selecting, openPanel };
+  const open = useRef(openPanel);
+  open.current = openPanel;
   useEffect(() => {
     const up = () => {
-      if (!live.current.selecting) return;
-      setSelecting(false);
-      live.current.openPanel(live.current.sel);
+      const s = drag.current;
+      if (!s) return;
+      drag.current = null;
+      open.current(s);
     };
     window.addEventListener("mouseup", up);
     return () => window.removeEventListener("mouseup", up);
@@ -216,7 +223,12 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
   }
 
   const { reason, ...spec } = form;
-  const saveEdit = (s: EditSpec = spec) => runPanel("edit", s);
+  const saveEdit = (s: EditSpec = spec) =>
+    runPanel("edit", {
+      ...s,
+      value: s.mode === "set" && prefill.value && s.value === prefill.value ? "" : s.value,
+      min: prefill.min && s.min === prefill.min ? "" : s.min,
+    });
   const doBlock = () => runPanel("block", { ...blankSpec(), days: form.days }, reason);
   const doReset = () => runPanel("reset", { ...blankSpec(), days: form.days });
 
@@ -419,7 +431,9 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
                           </span>
                         </button>
                         <div className="flex min-w-0 flex-col">
-                          <span className="truncate text-[14px] font-bold">{p.name}</span>
+                          <span className="truncate text-[14px] font-bold">
+                            <bdi>{p.name}</bdi>
+                          </span>
                           <span className="truncate text-[12px] text-[#6B7280]">
                             {[p.cityName, t.units(units)].filter(Boolean).join(" · ")}
                           </span>
@@ -434,7 +448,9 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
                             <div className="flex border-t border-[#E5E7EB]">
                               <div className="sticky start-0 z-[3] flex h-[54px] flex-[0_0_232px] items-center bg-white px-3">
                                 <div className="flex min-w-0 flex-col">
-                                  <span className="truncate text-[14px] font-semibold">{type.name}</span>
+                                  <span className="truncate text-[14px] font-semibold">
+                                    <bdi>{type.name}</bdi>
+                                  </span>
                                   <span className="truncate text-[12px] text-[#6B7280]">
                                     {type.count > 1
                                       ? t.identical(type.count)
@@ -461,11 +477,13 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
                                     title={look.title}
                                     onMouseDown={(e) => {
                                       if (e.button !== 0) return;
-                                      setSel({ month: false, r0: row, r1: row, d0: d, d1: d });
-                                      setSelecting(true);
+                                      drag.current = { month: false, r0: row, r1: row, d0: d, d1: d };
+                                      setSel(drag.current);
                                     }}
                                     onMouseEnter={() => {
-                                      if (selecting) setSel((s) => (s ? { ...s, r1: row, d1: d } : s));
+                                      if (!drag.current || drag.current.month) return;
+                                      drag.current = { ...drag.current, r1: row, d1: d };
+                                      setSel(drag.current);
                                     }}
                                     onKeyDown={(e) => {
                                       if (e.key !== "Enter" && e.key !== " ") return;
@@ -542,11 +560,13 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
                     title={past ? undefined : `${t.day(d)} · ${money(n.price, mType)} · ${t.minStayN(n.minStay)}`}
                     onMouseDown={(e) => {
                       if (past || e.button !== 0) return;
-                      setSel({ month: true, r0: 0, r1: 0, d0: d, d1: d });
-                      setSelecting(true);
+                      drag.current = { month: true, r0: 0, r1: 0, d0: d, d1: d };
+                      setSel(drag.current);
                     }}
                     onMouseEnter={() => {
-                      if (selecting && !past) setSel((s) => (s?.month ? { ...s, d1: d } : s));
+                      if (past || !drag.current?.month) return;
+                      drag.current = { ...drag.current, d1: d };
+                      setSel(drag.current);
                     }}
                     onKeyDown={(e) => {
                       if (past || (e.key !== "Enter" && e.key !== " ")) return;
@@ -569,7 +589,7 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
                       >
                         {Number(d.slice(8, 10))}
                       </span>
-                      {!past && <span className="text-[11px] font-bold text-[#111827]">{n.minStay > 1 ? `${n.minStay}+` : ""}</span>}
+                      {!past && <span className="text-[11px] font-bold text-[#111827]">{n.minStay > 1 ? plus(n.minStay) : ""}</span>}
                     </div>
                     {!past && (
                       <>
@@ -742,7 +762,7 @@ function Legend({ t }: { t: CalendarDict }) {
         {t.noDeparture}
       </span>
       <span className="flex items-center gap-1.5">
-        <b className="text-[#111827]">3+</b>
+        <b dir="ltr" className="text-[#111827]">3+</b>
         {t.minStayLegend}
       </span>
     </div>

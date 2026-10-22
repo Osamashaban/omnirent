@@ -6,6 +6,9 @@ import { CheckCircle, AlertCircle } from "@/components/ops/icons";
 
 export const num = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
+// "3+" (min stay), kept in that order inside Arabic text.
+export const plus = (n: number) => `\u2066${n}+\u2069`;
+
 export const HATCH_BLOCKED = "repeating-linear-gradient(135deg,#E5E7EB 0 6px,#F9FAFB 6px 12px)";
 export const HATCH_LINKED = "repeating-linear-gradient(135deg,#EAF3DE 0 6px,#FFFFFF 6px 12px)";
 
@@ -41,10 +44,10 @@ export function gridLook(
     return { ...look, background: HATCH_LINKED, topClass: "text-[#9CA3AF]", sub: t.linked, subClass: "text-[#3B6D11]", title: t.linkedTitle };
   }
   if (type.count > 1) {
-    const sub = t.leftOf(night.left, type.count) + (night.minStay > type.minStay ? ` · ${night.minStay}+` : "");
+    const sub = t.leftOf(night.left, type.count) + (night.minStay > type.minStay ? ` · ${plus(night.minStay)}` : "");
     return { ...look, sub, subClass: night.left === 0 ? "text-[#B91C1C]" : "text-[#15803D]" };
   }
-  if (!night.booked) return { ...look, sub: night.minStay > 1 ? `${night.minStay}+` : "", subClass: "text-[#111827]" };
+  if (!night.booked) return { ...look, sub: night.minStay > 1 ? plus(night.minStay) : "", subClass: "text-[#111827]" };
   return { ...look, topClass: "text-[#9CA3AF]" };
 }
 

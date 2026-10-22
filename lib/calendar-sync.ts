@@ -4,14 +4,14 @@
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
+import { pushAvailability, pushRestrictions } from "./channex-ari";
 import type { AriValues } from "./calendar-rules";
 
-// The Channex client is built in the "Save and publish" release
-// (lib/channex-ari.ts, pushAri). Until it is merged, no property is on
-// Channex, saves carry no values, and this is never reached.
-// TODO(channex-publish): call pushAri(propertyId, values) from lib/channex-ari.
-async function pushAri(_propertyId: string, _values: AriValues): Promise<void> {
-  throw new Error("Channex is not connected yet");
+// One property's values: availability first, then prices and rules (the
+// values carry the Channex property id).
+async function pushAri(values: AriValues): Promise<void> {
+  await pushAvailability(values.availability);
+  await pushRestrictions(values.restrictions);
 }
 
 export async function sendChange(changeId: string): Promise<boolean> {
@@ -24,7 +24,7 @@ export async function sendChange(changeId: string): Promise<boolean> {
   const errors: Record<string, string> = {};
   for (const propertyId of propertyIds) {
     try {
-      await pushAri(propertyId, values[propertyId]);
+      await pushAri(values[propertyId]);
     } catch (e) {
       errors[propertyId] = e instanceof Error ? e.message.slice(0, 300) : "failed";
     }

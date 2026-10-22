@@ -4,7 +4,7 @@
 // A 600px drawer on desktop, a full-screen sheet on phones. The guard rails
 // (minimum price, confirm over 100 nights) are the same rules the server runs.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CalProperty, CalTypeView } from "@/lib/calendar-data";
 import type { CalendarDict } from "@/lib/calendar-i18n";
 import type { Lang } from "@/lib/i18n";
@@ -82,6 +82,11 @@ export function BulkEdit({
   };
   const [state, setState] = useState(start);
   const [err, setErr] = useState("");
+  // A refused save shows its reason at the end of the drawer: bring it into view.
+  const errBox = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (err) errBox.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [err]);
   const update = (patch: Partial<typeof state>) => {
     setState((s) => ({ ...s, ...patch }));
     setErr("");
@@ -181,7 +186,11 @@ export function BulkEdit({
               <button type="button" onClick={() => update({ typeIds: types.map((x) => x.id) })} className="cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#3B6D11]">
                 {t.selectAll}
               </button>
-              <button type="button" onClick={() => update({ typeIds: [] })} className="cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#4B5563]">
+              <button
+                type="button"
+                onClick={() => update({ typeIds: [] })}
+                className="cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#4B5563] max-[899px]:hidden"
+              >
                 {t.clear}
               </button>
             </div>
@@ -221,7 +230,7 @@ export function BulkEdit({
                       onClick={() => toggle(ids, !on)}
                       className={`h-[30px] cursor-pointer self-start rounded-full px-3 text-[13px] font-bold ${chipClass(on)}`}
                     >
-                      {p.name}
+                      <bdi>{p.name}</bdi>
                     </button>
                     <div className="flex flex-wrap gap-x-3.5 gap-y-1 ps-1.5">
                       {mine.map((x) => {
@@ -242,7 +251,8 @@ export function BulkEdit({
                             >
                               {checked ? "✓" : ""}
                             </span>
-                            {x.name + (x.count > 1 ? ` · ×${x.count}` : "")}
+                            <bdi>{x.name}</bdi>
+                            {x.count > 1 ? ` · \u2066×${x.count}\u2069` : ""}
                           </button>
                         );
                       })}
@@ -402,7 +412,9 @@ export function BulkEdit({
                   const type = types.find((x) => x.id === ex.typeId);
                   return (
                     <li key={ex.typeId} className="flex justify-between gap-2 max-[899px]:flex-col max-[899px]:gap-0.5">
-                      <span className="text-[#4B5563]">{`${propName(type?.propertyId ?? "")} · ${type?.name ?? ""} · ${t.day(ex.date)}`}</span>
+                      <span className="text-[#4B5563]">
+                        <bdi>{propName(type?.propertyId ?? "")}</bdi> · <bdi>{type?.name ?? ""}</bdi> · {t.day(ex.date)}
+                      </span>
                       <span dir="ltr" className={`font-bold tabular-nums ${ex.below ? "text-[#B91C1C]" : "text-[#111827]"}`}>
                         {num(ex.from)} → {num(ex.to)}
                       </span>
@@ -431,7 +443,7 @@ export function BulkEdit({
           </section>
 
           {err && (
-            <div className="max-[899px]:hidden">
+            <div ref={errBox} className="max-[899px]:hidden">
               <ErrorAlert>{err}</ErrorAlert>
             </div>
           )}
