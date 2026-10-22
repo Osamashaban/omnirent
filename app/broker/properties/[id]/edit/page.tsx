@@ -7,6 +7,7 @@ import { PROPERTY_DICTS } from "@/lib/property-i18n";
 import { defaultNames, loadPropertyInclude, wizardOptions } from "@/lib/property-data";
 import { STEP_COUNT, formFromStored } from "@/lib/property-rules";
 import { BrokerCloseBar, BrokerMain } from "@/components/broker/BrokerShell";
+import { channexConfigured } from "@/lib/channex";
 import { Wizard } from "../../_wizard/Wizard";
 
 export const metadata: Metadata = { title: "Omnirent · Edit property" };
@@ -36,6 +37,7 @@ export default async function EditPropertyPage({ params, searchParams }: Props) 
           initialForm={formFromStored(property, names)}
           stepsDone={property.stepsDone}
           startStep={startStep}
+          canPublish={channexConfigured()}
           ratesSaved={property.stepsDone >= 4}
         />
       </BrokerMain>

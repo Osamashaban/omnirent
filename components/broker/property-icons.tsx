@@ -83,3 +83,10 @@ export const ArrowBack = ({ size = 20, className }: P) => (
     <path d="m12 19-7-7 7-7M19 12H5" />
   </svg>
 );
+
+export const Clock = ({ size = 18, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+);

@@ -10,17 +10,23 @@ import { derivedPrice, formatMoney, fromPrice, listStatus, unitTotal } from "@/l
 import { BrokerCloseBar, BrokerMain } from "@/components/broker/BrokerShell";
 import { Pencil } from "@/components/ops/icons";
 import { CornerArrow } from "@/components/broker/property-icons";
+import { AlertCircle } from "@/components/ops/icons";
+import { readSyncError, stageStates } from "@/lib/channex-payload";
 import { InfoBox, StatusChip, Thumb, TypeChip } from "../parts";
 import { HeaderActions } from "../PropertyActions";
+import { FlashToast } from "../FlashToast";
+import { RetryPublish, SyncWatcher } from "../Publish";
+import { SyncLines, failureText, timeAgo } from "../sync-list";
 
 export const metadata: Metadata = { title: "Omnirent · Property" };
 
 const TABS = ["overview", "units", "rates", "channels"] as const;
 type Tab = (typeof TABS)[number];
 
-type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; done?: string }> };
 
-// One property: overview, units, rates and channels. The design's Policies,
+// One property: overview, units, rates and channels, with the state of its
+// last publish to Channex. The design's Policies,
 // Taxes & fees and Content tabs aren't designed yet; those details are edited
 // in the wizard.
 export default async function PropertyPage({ params, searchParams }: Props) {
@@ -45,6 +51,11 @@ export default async function PropertyPage({ params, searchParams }: Props) {
   const price = fromPrice(rates);
   const title = (lang === "ar" && property.titleAr) || property.titleEn;
   const subtitle = [title, name(property.city), p.subtitleUnits(total)].filter(Boolean).join(" · ");
+  const counts = { units: units.length, rates: rates.length };
+  const syncError = readSyncError(property.syncError);
+  const now = new Date();
+  // Units and rates show the property's publish state.
+  const rowStatus = status === "synced" || status === "syncing" || status === "failed" ? status : "draft";
   const policyName = (c: string) => (c ? (p.policies[c]?.[0] ?? c) : p.sameAsPropertyShort);
   const th = "px-4 py-3 text-start text-[12px] font-semibold text-[#374151]";
   const td = "border-t border-[#F3F4F6] px-4 py-3 text-[14px]";
@@ -100,6 +111,28 @@ export default async function PropertyPage({ params, searchParams }: Props) {
           ))}
         </nav>
 
+        {tab === "overview" && status === "failed" && (
+          <>
+            <div role="alert" className="flex items-start gap-3 rounded-[10px] border border-[#FECACA] bg-[#FEE2E2] px-4 py-3.5">
+              <AlertCircle size={20} className="mt-px flex-none text-[#B91C1C]" />
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="text-[14px] font-semibold text-[#B91C1C] max-[899px]:hidden">{p.syncFailedTitle}</span>
+                <span className="text-[14px] font-semibold text-[#B91C1C] min-[900px]:hidden">{p.syncFailedShort}</span>
+                <span className="text-[13px] leading-[1.6] text-[#374151] max-[899px]:hidden">
+                  {failureText(p, syncError)} {p.notOnChannels}
+                </span>
+                <span className="text-[13px] leading-[1.6] text-[#374151] min-[900px]:hidden">{failureText(p, syncError, true)}</span>
+              </div>
+              <div className="flex flex-col items-end gap-1 max-[899px]:hidden">
+                <RetryPublish lang={lang} propertyId={property.id} counts={counts} />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1 min-[900px]:hidden">
+              <RetryPublish lang={lang} propertyId={property.id} counts={counts} full />
+            </div>
+          </>
+        )}
+
         {tab === "overview" && (
           <>
             <div className="grid grid-cols-2 gap-3 min-[1100px]:grid-cols-4">
@@ -111,15 +144,13 @@ export default async function PropertyPage({ params, searchParams }: Props) {
             <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-2 max-[899px]:hidden">
               <section className="flex flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white p-5">
                 <h2 className="m-0 text-[18px] font-bold">{p.channelSync}</h2>
-                <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
-                  {p.syncSteps.map((label, i) => (
-                    <li key={label} className="flex items-center gap-2.5 text-[14px]">
-                      <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#D1D5DB]" />
-                      <span className="flex-1">{i === 1 ? p.syncCount(label, units.length) : i === 2 ? p.syncCount(label, rates.length) : label}</span>
-                      <span className="text-[#6B7280]">{p.notSynced}</span>
-                    </li>
-                  ))}
-                </ul>
+                <SyncLines p={p} states={stageStates(property.status, property.syncStage)} counts={counts} />
+                {property.status === "SYNCED" && property.syncedAt && (
+                  <span className="text-[13px] text-[#15803D]">{p.lastSynced(timeAgo(property.syncedAt, now, lang, p))}</span>
+                )}
+                {property.status === "SYNC_FAILED" && property.syncStartedAt && (
+                  <span className="text-[13px] text-[#B91C1C]">{p.lastAttempt(timeAgo(property.syncStartedAt, now, lang, p))}</span>
+                )}
               </section>
               <section className="flex flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white p-5">
                 <h2 className="m-0 text-[18px] font-bold">{p.details}</h2>
@@ -171,7 +202,7 @@ export default async function PropertyPage({ params, searchParams }: Props) {
                       <td className={td}>{p.capacity(u.adults, u.children, u.infants)}</td>
                       <td className={td}>{p.roomsLine(u.bedrooms, u.beds, u.bathrooms)}</td>
                       <td className={td}>
-                        <StatusChip status="draft" label={p.status.draft} />
+                        <StatusChip status={rowStatus} label={p.status[rowStatus]} />
                       </td>
                       <td className={`${td} text-end`}>
                         {status !== "archived" && (
@@ -224,7 +255,7 @@ export default async function PropertyPage({ params, searchParams }: Props) {
                         <td className={td}>{p.nightsCount(r.minStay)}</td>
                         <td className={td}>{policyName(r.cancellationPolicy)}</td>
                         <td className={td}>
-                          <StatusChip status="draft" label={p.status.draft} />
+                          <StatusChip status={rowStatus} label={p.status[rowStatus]} />
                         </td>
                         <td className={`${td} text-end`}>
                           {status !== "archived" && (
@@ -255,7 +286,7 @@ export default async function PropertyPage({ params, searchParams }: Props) {
                           <td className={td}>{p.nightsCount(r.minStay)}</td>
                           <td className={td}>{policyName(child.cancellationPolicy)}</td>
                           <td className={td}>
-                            <StatusChip status="draft" label={p.status.draft} />
+                            <StatusChip status={rowStatus} label={p.status[rowStatus]} />
                           </td>
                           <td className={`${td} text-end`}>
                             {status !== "archived" && (
@@ -308,6 +339,8 @@ export default async function PropertyPage({ params, searchParams }: Props) {
         <div className="min-[900px]:hidden">
           <HeaderActions lang={lang} target={{ id: property.id, nickname: property.nickname, units: total }} archived={status === "archived"} />
         </div>
+        {status === "syncing" && <SyncWatcher propertyId={property.id} />}
+        {query.done === "published" && status === "synced" && <FlashToast closeLabel={p.close}>{p.published}</FlashToast>}
       </BrokerMain>
     </>
   );
