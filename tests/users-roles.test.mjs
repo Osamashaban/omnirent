@@ -210,3 +210,18 @@ test("Add user and role forms keep the chosen role and modules after an error", 
     assert.match(source, /<form onSubmit=\{submitKeepingValues\(action\)\}/, file);
   }
 });
+
+test("Users and Roles show the no-access page, like the other modules, instead of a bare 404", () => {
+  for (const file of ["app/settings/users/page.tsx", "app/settings/roles/page.tsx"]) {
+    const source = readFileSync(join(repoRoot, file), "utf8");
+    assert.match(source, /if \(!canAccess\(me\.moduleKeys, "users_roles"\)\)/, file);
+    assert.match(source, /<NoAccess t=\{t\} roleName=\{me\.roleName\} \/>/, file);
+  }
+});
+
+test("counts in messages use the right singular", () => {
+  assert.match(DICTS.en.cantDeleteCityBody(1), /^1 property uses this city/);
+  assert.match(DICTS.en.cantDeleteCityBody(3), /^3 properties use this city/);
+  assert.match(DICTS.en.fieldsNeedChanges(1), /^1 field needs/);
+  assert.match(DICTS.en.fieldsNeedChanges(2), /^2 fields need/);
+});

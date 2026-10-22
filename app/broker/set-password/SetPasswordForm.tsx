@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ops/icons";
 import { BrokerFieldError, brokerPrimaryButtonClass } from "@/components/broker/BrokerAuthShell";
 import { PasswordFields } from "@/components/broker/PasswordFields";
 import { InviteExpired } from "@/components/broker/InviteExpired";
+import { submitKeepingValues } from "@/lib/form-submit";
 
 export function SetPasswordForm({
   lang,
@@ -52,7 +53,7 @@ export function SetPasswordForm({
           </span>
         </p>
       </div>
-      <form action={action} noValidate className="m-0 flex flex-col gap-4 min-[900px]:gap-5">
+      <form onSubmit={submitKeepingValues(action)} noValidate className="m-0 flex flex-col gap-4 min-[900px]:gap-5">
         <input type="hidden" name="token" value={token} />
         <PasswordFields b={b} label={b.password} passwordError={state.passwordError} confirmError={state.confirmError} disabled={pending} />
         <label className="flex cursor-pointer items-start gap-2.5 text-[14px] leading-[1.6]">

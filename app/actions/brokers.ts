@@ -62,7 +62,7 @@ export type BrokerFormValues = {
 
 export type BrokerFormState = {
   values?: BrokerFormValues;
-  errors?: Partial<Record<"company" | "contact" | "mobile" | "email" | "cityId", "required" | "invalid" | "taken">>;
+  errors?: Partial<Record<"company" | "contact" | "mobile" | "email" | "cityId" | "units", "required" | "invalid" | "taken">>;
   formError?: true;
   done?: { kind: "added" | "saved"; brokerId: string; company: string; email: string; at: number };
 };
@@ -101,6 +101,9 @@ export async function saveBroker(_prev: BrokerFormState, form: FormData): Promis
   const city = isRowId(values.cityId) ? await prisma.city.findUnique({ where: { id: values.cityId }, include: { country: true } }) : null;
   const cityAllowed = city && ((city.visible && city.country.visible) || city.id === existing?.mainCityId);
   if (!cityAllowed) errors.cityId = "required";
+  // Optional, but a typed value that isn't a sensible count (like -5) is
+  // pointed out instead of quietly saved as "not set".
+  if (values.units && parseApproxUnits(values.units) === null) errors.units = "invalid";
   if (Object.keys(errors).length > 0) return { values, errors };
 
   const data = {
