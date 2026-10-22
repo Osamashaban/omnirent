@@ -382,7 +382,7 @@ function RowActions({ b, row, onPanel, onRowResult }: { b: BrokerDict; row: Brok
 
 function BrokerCards({ b, rows, highlight, onRowResult }: RowProps) {
   return (
-    <ul className="m-0 flex list-none flex-col gap-2 p-0 min-[900px]:hidden">
+    <ul className="m-0 -mt-3 flex list-none flex-col gap-2 p-0 min-[900px]:hidden">
       {rows.map((row) => (
         <BrokerCard key={row.id} b={b} row={row} highlighted={row.id === highlight} onRowResult={onRowResult} />
       ))}
@@ -399,7 +399,7 @@ function BrokerCard({ b, row, highlighted, onRowResult }: { b: BrokerDict; row: 
       ? { label: b.reactivate, fn: () => setBrokerActive(row.id, true) }
       : null;
   return (
-    <li className={`flex flex-col gap-2.5 rounded-xl border border-[#E5E7EB] p-3 ${highlighted ? "bg-[#F7FBF1]" : "bg-white"}`}>
+    <li className={`flex flex-col gap-2.5 rounded-xl border border-[#E5E7EB] p-3 leading-[normal] ${highlighted ? "bg-[#F7FBF1]" : "bg-white"}`}>
       <div className="flex items-start gap-2.5">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="text-[15px] font-bold">{row.company}</span>

@@ -54,7 +54,7 @@ export function PasswordFields({
         </div>
         {passwordError && <BrokerFieldError id="bp_password_error">{b.errPasswordRules}</BrokerFieldError>}
       </div>
-      <ul id="bp_rules" className="m-0 flex list-none flex-col gap-1.5 p-0 text-[13px]">
+      <ul id="bp_rules" className="m-0 flex list-none flex-col gap-1.5 p-0 text-[13px] leading-[normal]">
         {rules.map(([ok, text]) => (
           <li key={text} className={`flex items-center gap-2 ${ok ? "text-[#15803D]" : "text-[#6B7280]"}`}>
             <span aria-hidden="true" className="w-4 text-center font-bold">
