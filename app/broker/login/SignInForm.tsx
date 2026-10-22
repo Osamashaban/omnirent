@@ -77,7 +77,7 @@ export function SignInForm({ lang, initialEmail }: { lang: Lang; initialEmail: s
             <input type="checkbox" name="keep" defaultChecked={state.keep ?? true} key={String(state.keep)} className="h-[18px] w-[18px] accent-[#639922]" />
             {b.keepSignedIn}
           </label>
-          <Link href="/broker/forgot-password" className={brokerLinkButtonClass}>
+          <Link href="/broker/forgot-password" className={`${brokerLinkButtonClass} max-[899px]:underline`}>
             {b.forgotPassword}
           </Link>
         </div>

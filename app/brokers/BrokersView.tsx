@@ -164,6 +164,16 @@ function FilterBar({ b, counts, filters, onAdd }: { b: BrokerDict; counts: Count
   const [q, setQ] = useState(filters.q);
   const [, startTransition] = useTransition();
   const first = useRef(true);
+  // The phone design has a shorter search hint; a placeholder can't be
+  // switched with CSS, so follow the screen width.
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 899px)");
+    const update = () => setPhone(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   const push = useCallback(
     (next: Partial<Filters>) => {
@@ -226,7 +236,7 @@ function FilterBar({ b, counts, filters, onAdd }: { b: BrokerDict; counts: Count
             value={q}
             onChange={(e) => setQ(e.target.value)}
             aria-label={b.searchBrokers}
-            placeholder={b.searchBrokers}
+            placeholder={phone ? b.searchBrokersPhone : b.searchBrokers}
             className="h-11 w-full rounded-lg border border-[#D1D5DB] bg-white px-3 text-[14px] text-[#111827] outline-none placeholder:text-[#9CA3AF] focus:border-[#639922] focus:ring-2 focus:ring-[#639922]/25 min-[900px]:ps-10"
           />
         </label>
@@ -372,7 +382,7 @@ function RowActions({ b, row, onPanel, onRowResult }: { b: BrokerDict; row: Brok
 
 function BrokerCards({ b, rows, highlight, onRowResult }: RowProps) {
   return (
-    <ul className="m-0 flex list-none flex-col gap-2 p-0 min-[900px]:hidden">
+    <ul className="m-0 -mt-3 flex list-none flex-col gap-2 p-0 min-[900px]:hidden">
       {rows.map((row) => (
         <BrokerCard key={row.id} b={b} row={row} highlighted={row.id === highlight} onRowResult={onRowResult} />
       ))}
@@ -389,7 +399,7 @@ function BrokerCard({ b, row, highlighted, onRowResult }: { b: BrokerDict; row: 
       ? { label: b.reactivate, fn: () => setBrokerActive(row.id, true) }
       : null;
   return (
-    <li className={`flex flex-col gap-2.5 rounded-xl border border-[#E5E7EB] p-3 ${highlighted ? "bg-[#F7FBF1]" : "bg-white"}`}>
+    <li className={`flex flex-col gap-2.5 rounded-xl border border-[#E5E7EB] p-3 leading-[normal] ${highlighted ? "bg-[#F7FBF1]" : "bg-white"}`}>
       <div className="flex items-start gap-2.5">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="text-[15px] font-bold">{row.company}</span>
