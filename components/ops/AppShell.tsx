@@ -1,7 +1,8 @@
 // The signed-in Ops dashboard frame: sidebar on desktop, a top bar with a
 // slide-out menu under 900px. The sidebar shows only the modules the signed-in
-// user's role has. Today that is the Settings group: Users, Property types and
-// Countries & cities, each shown only when the role has its module.
+// user's role has: Brokers at the top level, then the Settings group (Users,
+// Property types and Countries & cities), each shown only when the role has
+// its module.
 
 import Link from "next/link";
 import { signOut } from "@/app/actions/auth";
@@ -12,10 +13,10 @@ import type { Dict, Lang } from "@/lib/i18n";
 import { LogoMark, Wordmark } from "./Logo";
 import { LangButton } from "./LangButton";
 import { MobileMenu } from "./MobileMenu";
-import { Chevron, LogOut, Settings } from "./icons";
+import { Briefcase, Chevron, LogOut, Settings } from "./icons";
 import { Initials } from "./ui";
 
-export type NavKey = "users" | "property_types" | "countries";
+export type NavKey = "brokers" | "users" | "property_types" | "countries";
 
 type Props = { user: CurrentUser; lang: Lang; t: Dict; active: NavKey; back: string; title: string; children: React.ReactNode };
 
@@ -63,10 +64,22 @@ function SideNav({ user, t, active }: { user: CurrentUser; t: Dict; active: NavK
     { key: "countries", module: "countries_cities", href: "/settings/countries", label: t.countriesNav },
   ];
   const allowed = links.filter((l) => canAccess(user.moduleKeys, l.module));
-  if (allowed.length === 0) return <nav aria-label={t.mainMenu} />;
+  const showBrokers = canAccess(user.moduleKeys, "brokers");
+  if (allowed.length === 0 && !showBrokers) return <nav aria-label={t.mainMenu} />;
   return (
     <nav aria-label={t.mainMenu} className="flex flex-col gap-1">
-      {/* The arrow opens and closes the group; it starts open on every page. */}
+      {showBrokers && (
+        <Link
+          href="/brokers"
+          aria-current={active === "brokers" ? "page" : undefined}
+          className="flex h-10 items-center gap-2.5 rounded-lg px-3 text-[14px] font-medium text-[#4B5563] no-underline aria-[current=page]:bg-[#EAF3DE] aria-[current=page]:font-semibold aria-[current=page]:text-[#27500A] hover:bg-[#F3F4F6]"
+        >
+          <Briefcase />
+          {t.brokersNav}
+        </Link>
+      )}
+      {allowed.length > 0 && (
+      /* The arrow opens and closes the group; it starts open on every page. */
       <details open className="group">
         <summary className="flex h-10 cursor-pointer list-none items-center gap-2.5 rounded-lg px-3 text-[14px] font-semibold text-[#111827] hover:bg-[#F3F4F6] [&::-webkit-details-marker]:hidden">
           <Settings />
@@ -86,6 +99,7 @@ function SideNav({ user, t, active }: { user: CurrentUser; t: Dict; active: NavK
           ))}
         </div>
       </details>
+      )}
     </nav>
   );
 }
