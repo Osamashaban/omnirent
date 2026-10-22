@@ -301,8 +301,9 @@ model Broker {
   // properties go in it.
   channexGroupId String?
 
-  users      BrokerUser[]
-  properties Property[]
+  users           BrokerUser[]
+  properties      Property[]
+  calendarChanges CalendarChange[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -491,9 +492,8 @@ model Property {
   createdById String?
   createdBy   BrokerUser? @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
-  unitTypes       UnitType[]
-  taxes           PropertyTax[]
-  calendarChanges CalendarChange[]
+  unitTypes UnitType[]
+  taxes     PropertyTax[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -644,24 +644,32 @@ enum CalendarChangeStatus {
   FAILED
 }
 
-// One calendar save, as sent to the channels. Drives the "Sending / All
-// changes live / Failed, Retry" pill, and keeps the values so Retry can resend
-// them. The change itself is already saved in CalendarDay.
+// One calendar save (quick edit, bulk edit, block, reset or undo), as sent to
+// the channels. Drives the "Sending / All changes live / Failed, Retry" pill
+// and keeps the Channex values per property so Retry can resend them. The
+// change itself is already saved in CalendarDay; `before` holds the rows as
+// they were, so the save can be undone for a short while.
 model CalendarChange {
-  id         String               @id @default(cuid())
-  propertyId String
-  property   Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  status     CalendarChangeStatus @default(SENDING)
-  // Channex ARI values: { restrictions: [...], availability: [...] }.
-  values     Json
-  error      Json?
-  attempts   Int                  @default(0)
+  id       String               @id @default(cuid())
+  brokerId String
+  broker   Broker               @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  status   CalendarChangeStatus @default(SENDING)
+  // { [propertyId]: { restrictions: [...], availability: [...] } }, only for
+  // properties already on Channex.
+  values   Json
+  // The CalendarDay rows touched, as they were: [{ unitTypeId, date, row }].
+  before   Json
+  // { [propertyId]: message } for the properties that failed last time.
+  error    Json?
+  attempts Int                  @default(0)
+  nights   Int                  @default(0)
 
   createdById String?
   createdBy   BrokerUser? @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   createdAt DateTime  @default(now())
   sentAt    DateTime?
+  undoneAt  DateTime?
 
-  @@index([propertyId, status])
+  @@index([brokerId, status])
 }
