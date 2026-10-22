@@ -24,9 +24,12 @@ export default async function PropertyTypesPage() {
     );
   }
 
-  const types = await prisma.propertyType.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] });
+  const types = await prisma.propertyType.findMany({
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    include: { _count: { select: { properties: true } } },
+  });
 
-  // No property table exists yet, so nothing is in use until properties ship.
+  // "In use" counts every broker property of the type, archived ones included.
   const rows: TypeRow[] = types.map((p) => ({
     id: p.id,
     nameAr: p.nameAr,
@@ -36,7 +39,7 @@ export default async function PropertyTypesPage() {
     rentMode: p.rentMode,
     status: p.status,
     channelNames: (p.channelNames ?? {}) as Record<string, string>,
-    inUse: 0,
+    inUse: p._count.properties,
   }));
 
   return (

@@ -28,10 +28,10 @@ export default async function CountriesPage({ searchParams }: Props) {
 
   const countries = await prisma.country.findMany({
     orderBy: { createdAt: "asc" },
-    include: { cities: { orderBy: { createdAt: "asc" } } },
+    include: { cities: { orderBy: { createdAt: "asc" }, include: { _count: { select: { properties: true } } } } },
   });
 
-  // No property table exists yet, so every count is 0 until properties ship.
+  // Property counts include archived properties: they still use the city.
   const rows: CountryRow[] = countries.map((c) => ({
     id: c.id,
     nameAr: c.nameAr,
@@ -41,7 +41,7 @@ export default async function CountriesPage({ searchParams }: Props) {
     currency: c.currency,
     timezone: c.timezone,
     visible: c.visible,
-    cities: c.cities.map((city) => ({ id: city.id, nameAr: city.nameAr, nameEn: city.nameEn, visible: city.visible, propertyCount: 0 })),
+    cities: c.cities.map((city) => ({ id: city.id, nameAr: city.nameAr, nameEn: city.nameEn, visible: city.visible, propertyCount: city._count.properties })),
   }));
 
   return (

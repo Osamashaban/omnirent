@@ -4,8 +4,8 @@
 // types. Every action checks again that the signed-in person's role has the
 // page's module: hiding a button is not a permission check.
 //
-// No property table exists yet, so nothing is "in use" and every city can be
-// deleted. When properties arrive, the in-use counts must be checked here.
+// A city that a broker's property uses can't be deleted (hiding it is the
+// way to stop new properties picking it); the database refuses it too.
 
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
@@ -140,9 +140,16 @@ export async function setCityVisible(cityId: string, visible: boolean): Promise<
 export async function deleteCity(cityId: string): Promise<{ ok: boolean }> {
   await requireAccess("countries_cities");
   if (!(isRowId(cityId))) return { ok: false };
-  const found = await prisma.city.deleteMany({ where: { id: cityId } });
-  done();
-  return { ok: found.count === 1 };
+  if (await prisma.property.count({ where: { cityId } })) return { ok: false };
+  try {
+    const found = await prisma.city.deleteMany({ where: { id: cityId } });
+    done();
+    return { ok: found.count === 1 };
+  } catch (err) {
+    // Still in use by a property added a moment ago, or a broker's main city.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2003") return { ok: false };
+    throw err;
+  }
 }
 
 // ---------------------------------------------------------------------------
