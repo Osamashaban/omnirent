@@ -912,7 +912,6 @@ function PhoneCalendar({
                     <span className={`text-[15px] font-bold tabular-nums ${n.stop ? "text-[#9CA3AF] line-through" : "text-[#111827]"}`}>
                       {money(n.price, mType)}
                     </span>
-                    {n.minStay > 1 && <span className="text-[12px] text-[#6B7280]">{t.minStayN(n.minStay)}</span>}
                   </span>
                   <span className={`flex-none text-[12px] font-bold ${look.subClass}`}>{look.sub}</span>
                 </button>
