@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { deleteRole, saveRole, type RoleFormState } from "@/app/actions/settings";
+import { submitKeepingValues } from "@/lib/form-submit";
 import { DICTS, type Dict, type Lang } from "@/lib/i18n";
 import { Dialog, Drawer, Toast } from "@/components/ops/Overlay";
 import { AlertCircle, Check, Info, Lock, Pencil, Plus, Spinner, Trash } from "@/components/ops/icons";
@@ -214,7 +215,7 @@ function RoleEditor({
   const toggle = (id: string) => setTicked((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]));
 
   return (
-    <form action={action} className="contents">
+    <form onSubmit={submitKeepingValues(action)} className="contents">
       <Drawer
         title={role ? t.editRole : t.createRole}
         description={t.roleEditorBody}
