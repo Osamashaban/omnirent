@@ -1,8 +1,7 @@
 // The signed-in broker app frame (app.getomnirent.com): sidebar on desktop
-// with the company card, the Properties link and the user card; under 900px
-// a top bar instead. As in Ops, the language button sits
-// above the user card. The design's Calendar link is left out until the
-// calendar exists.
+// with the company card, the Properties and Calendar links and the user card;
+// under 900px a top bar instead. As in Ops, the language button sits above
+// the user card.
 
 import Link from "next/link";
 import { brokerSignOut } from "@/app/actions/broker-auth";
@@ -13,13 +12,28 @@ import { LogoMark, Wordmark } from "@/components/ops/Logo";
 import { MobileMenu } from "@/components/ops/MobileMenu";
 import { LogOut, X } from "@/components/ops/icons";
 import { Initials } from "@/components/ops/ui";
-import { Building } from "./property-icons";
+import { Building, CalendarIcon } from "./property-icons";
 import { BrokerLangButton } from "./BrokerLangButton";
 
-// The frame is the layout of every Properties page, so the sidebar stays put
-// while pages load. Each page draws its own phone top bar: the list has the
-// menu button, the wizard and property page a close (X) back to the list.
-export function BrokerFrame({ current, lang, p, children }: { current: CurrentBroker; lang: Lang; p: PropertyDict; children: React.ReactNode }) {
+export type BrokerSection = "properties" | "calendar";
+
+// The frame is the layout of every Properties and Calendar page, so the
+// sidebar stays put while pages load. Each page draws its own phone top bar:
+// the list and calendar have the menu button, the wizard and property page a
+// close (X) back to the list.
+export function BrokerFrame({
+  current,
+  lang,
+  p,
+  section = "properties",
+  children,
+}: {
+  current: CurrentBroker;
+  lang: Lang;
+  p: PropertyDict;
+  section?: BrokerSection;
+  children: React.ReactNode;
+}) {
   return (
     <div
       lang={lang}
@@ -29,7 +43,7 @@ export function BrokerFrame({ current, lang, p, children }: { current: CurrentBr
       <aside className="sticky top-0 hidden h-screen w-[248px] flex-none flex-col gap-5 border-e border-[#E5E7EB] bg-white px-3.5 py-5 min-[900px]:flex">
         <Brand />
         <CompanyCard current={current} p={p} />
-        <SideNav p={p} />
+        <SideNav p={p} section={section} />
         <div className="mt-auto">
           <UserCard current={current} p={p} lang={lang} />
         </div>
@@ -50,13 +64,25 @@ export function BrokerMain({ children, className = "" }: { children: React.React
 
 const phoneBarClass = "sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-[#E5E7EB] bg-white px-2 min-[900px]:hidden";
 
-// Phone top bar with the slide-out menu (the properties list).
-export function BrokerMenuBar({ current, lang, p, title }: { current: CurrentBroker; lang: Lang; p: PropertyDict; title: string }) {
+// Phone top bar with the slide-out menu (the properties list, the calendar).
+export function BrokerMenuBar({
+  current,
+  lang,
+  p,
+  title,
+  section = "properties",
+}: {
+  current: CurrentBroker;
+  lang: Lang;
+  p: PropertyDict;
+  title: string;
+  section?: BrokerSection;
+}) {
   return (
     <header className={phoneBarClass}>
       <MobileMenu openLabel={p.openMenu} closeLabel={p.closeMenu} brand={<Brand />} footer={<UserCard current={current} p={p} lang={lang} />}>
         <CompanyCard current={current} p={p} />
-        <SideNav p={p} />
+        <SideNav p={p} section={section} />
       </MobileMenu>
       <span className="min-w-0 flex-1 truncate text-[17px] font-bold">{title}</span>
       <Initials name={current.user.name} size={32} />
@@ -108,16 +134,19 @@ function CompanyCard({ current, p }: { current: CurrentBroker; p: PropertyDict }
   );
 }
 
-function SideNav({ p }: { p: PropertyDict }) {
+const navLinkClass =
+  "flex h-10 items-center gap-2.5 rounded-lg px-3 text-[14px] font-medium text-[#4B5563] no-underline aria-[current=page]:bg-[#EAF3DE] aria-[current=page]:font-semibold aria-[current=page]:text-[#27500A] hover:bg-[#F3F4F6]";
+
+function SideNav({ p, section }: { p: PropertyDict; section: BrokerSection }) {
   return (
     <nav aria-label={p.mainMenu} className="flex flex-col gap-1">
-      <Link
-        href="/broker/properties"
-        aria-current="page"
-        className="flex h-10 items-center gap-2.5 rounded-lg px-3 text-[14px] font-medium text-[#4B5563] no-underline aria-[current=page]:bg-[#EAF3DE] aria-[current=page]:font-semibold aria-[current=page]:text-[#27500A] hover:bg-[#F3F4F6]"
-      >
+      <Link href="/broker/properties" aria-current={section === "properties" ? "page" : undefined} className={navLinkClass}>
         <Building />
         {p.properties}
+      </Link>
+      <Link href="/broker/calendar" aria-current={section === "calendar" ? "page" : undefined} className={navLinkClass}>
+        <CalendarIcon />
+        {p.calendar}
       </Link>
     </nav>
   );

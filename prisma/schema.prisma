@@ -301,8 +301,9 @@ model Broker {
   // properties go in it.
   channexGroupId String?
 
-  users      BrokerUser[]
-  properties Property[]
+  users           BrokerUser[]
+  properties      Property[]
+  calendarChanges CalendarChange[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -333,6 +334,8 @@ model BrokerUser {
   sessions          BrokerSession[]
   tokens            BrokerToken[]
   propertiesCreated Property[]
+  calendarEdits     CalendarDay[]
+  calendarChanges   CalendarChange[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -528,7 +531,8 @@ model UnitType {
   // Channex room type, set on the first publish.
   channexId  String?
 
-  rates RatePlan[]
+  rates    RatePlan[]
+  calendar CalendarDay[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -597,4 +601,75 @@ model PropertyTax {
   updatedAt DateTime @updatedAt
 
   @@index([propertyId])
+}
+
+// ---------------------------------------------------------------------------
+// Calendar (design App_Calendar): per-night prices, availability and rules.
+// ---------------------------------------------------------------------------
+
+// One night of one unit type, only where the broker changed something. An
+// empty field means "use the default" from the unit type and its standard
+// rate (price, min stay, max stay, closed-to-arrival weekdays). Non-refundable
+// and other derived rates follow the standard rate, so they have no rows.
+model CalendarDay {
+  id         String   @id @default(cuid())
+  unitTypeId String
+  unitType   UnitType @relation(fields: [unitTypeId], references: [id], onDelete: Cascade)
+  date       DateTime @db.Date
+
+  price             Decimal? @db.Decimal(12, 2)
+  // Units open for sale (at most the unit type's count). Channels get this
+  // minus the bookings that night.
+  unitsOpen         Int?
+  minStay           Int?
+  maxStay           Int? // 0 = no limit
+  closedToArrival   Boolean?
+  closedToDeparture Boolean?
+  stopSell          Boolean?
+  // Blocked dates are closed on every channel: "owner", "maintenance" or "other".
+  blockReason       String?
+
+  updatedById String?
+  updatedBy   BrokerUser? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([unitTypeId, date])
+}
+
+enum CalendarChangeStatus {
+  SENDING
+  LIVE
+  FAILED
+}
+
+// One calendar save (quick edit, bulk edit, block, reset or undo), as sent to
+// the channels. Drives the "Sending / All changes live / Failed, Retry" pill
+// and keeps the Channex values per property so Retry can resend them. The
+// change itself is already saved in CalendarDay; `before` holds the rows as
+// they were, so the save can be undone for a short while.
+model CalendarChange {
+  id       String               @id @default(cuid())
+  brokerId String
+  broker   Broker               @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  status   CalendarChangeStatus @default(SENDING)
+  // { [propertyId]: { restrictions: [...], availability: [...] } }, only for
+  // properties already on Channex.
+  values   Json
+  // The CalendarDay rows touched, as they were: [{ unitTypeId, date, row }].
+  before   Json
+  // { [propertyId]: message } for the properties that failed last time.
+  error    Json?
+  attempts Int                  @default(0)
+  nights   Int                  @default(0)
+
+  createdById String?
+  createdBy   BrokerUser? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+  undoneAt  DateTime?
+
+  @@index([brokerId, status])
 }

@@ -13,6 +13,7 @@ import type { SyncField } from "./channex-payload.ts";
 const ar = {
   // Frame
   properties: "العقارات",
+  calendar: "التقويم",
   brokerAccount: "حساب الوسيط",
   accountAdmin: "مدير الحساب",
   signOut: "تسجيل الخروج",
@@ -470,6 +471,7 @@ export type PropertyDict = typeof ar;
 
 const en: PropertyDict = {
   properties: "Properties",
+  calendar: "Calendar",
   brokerAccount: "Broker account",
   accountAdmin: "Account admin",
   signOut: "Sign out",

@@ -8,6 +8,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { channex, answerId, answerIds, ChannexError } from "@/lib/channex";
 import { pushAvailability, pushRestrictions } from "@/lib/channex-ari";
+import { calendarAri } from "@/lib/calendar-data";
 import {
   contentPayload,
   derivedRatePayload,
@@ -145,37 +146,25 @@ export async function runPublish(propertyId: string): Promise<void> {
     for (const id of await listed("/rate_plans")) if (!keepRates.has(id)) await remove(`/rate_plans/${id}`);
     for (const id of await listed("/room_types")) if (!keepRooms.has(id)) await remove(`/room_types/${id}`);
 
-    const newRooms: { id: string; count: number }[] = [];
     for (const u of p.units) {
       if (u.channexId) {
         await channex("PUT", `/room_types/${u.channexId}`, { room_type: roomTypePayload(u, pid) });
       } else {
         u.channexId = answerId(await channex("POST", "/room_types", { room_type: roomTypePayload(u, pid) }));
         await prisma.unitType.update({ where: { id: u.id }, data: { channexId: u.channexId } });
-        newRooms.push({ id: u.channexId, count: u.count });
       }
     }
-    // A new unit type opens all its units for sale. Later changes to how many
-    // are open on a date are made in the calendar.
-    await pushAvailability(newRooms.map((r) => ({ property_id: pid, room_type_id: r.id, ...window, availability: r.count })));
 
     // 3. Rates: each standard rate, then the rate that follows it.
     stage = "rates";
     await startStage(propertyId, "rates");
-    const repriced: { id: string; rate: string }[] = [];
     for (const u of p.units) {
       const roomTypeId = u.channexId!;
       const standard = u.rates.filter((r) => r.parentId === null);
       for (const r of standard) {
         const body = standardRatePayload(r, u, { propertyId: pid, roomTypeId }, p.currency);
         if (r.channexId) {
-          // A rate plan's default price only fills days opened later; when the
-          // broker changed it, the days already open get the new price too.
-          const before = await channex("GET", `/rate_plans/${r.channexId}`);
-          const options = (before.body as { data?: { attributes?: { options?: { rate?: unknown }[] } } } | null)?.data?.attributes?.options;
-          const oldRate = Number(options?.[0]?.rate ?? NaN);
           await channex("PUT", `/rate_plans/${r.channexId}`, { rate_plan: body });
-          if (oldRate !== r.price) repriced.push({ id: r.channexId, rate: body.options[0].rate });
         } else {
           r.channexId = answerId(await channex("POST", "/rate_plans", { rate_plan: body }));
           await prisma.ratePlan.update({ where: { id: r.id }, data: { channexId: r.channexId } });
@@ -190,7 +179,14 @@ export async function runPublish(propertyId: string): Promise<void> {
         }
       }
     }
-    await pushRestrictions(repriced.map((r) => ({ property_id: pid, rate_plan_id: r.id, ...window, rate: r.rate })));
+    // Every night for sale, as the calendar has it: units open, price and
+    // stay rules, with the broker's calendar changes on top of the unit
+    // types' defaults. A new unit type opens all its units for sale, and a
+    // changed default price reaches the nights already open, without undoing
+    // nights changed in the calendar.
+    const ari = await calendarAri(propertyId, window.date_from, window.date_to);
+    await pushAvailability(ari.availability);
+    await pushRestrictions(ari.restrictions);
 
     // 4. House policy, kept on the property.
     stage = "policy";
