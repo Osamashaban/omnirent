@@ -180,13 +180,14 @@ model Country {
   nameEn String @unique
 
   // ISO 3166 two-letter code, always upper case, e.g. "EG".
-  iso2     String @unique
+  iso2     String  @unique
   dialCode String // e.g. "+20"
   currency String // ISO 4217 code, e.g. "EGP"
   timezone String // IANA time zone, e.g. "Africa/Cairo"
   visible  Boolean @default(false)
 
-  cities City[]
+  cities     City[]
+  properties Property[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -200,7 +201,8 @@ model City {
   nameEn    String
   visible   Boolean @default(true)
 
-  brokers Broker[]
+  brokers    Broker[]
+  properties Property[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -251,6 +253,8 @@ model PropertyType {
 
   sortOrder Int @default(0)
 
+  properties Property[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -293,7 +297,8 @@ model Broker {
   invitedBy     User?     @relation("BrokerInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
   deactivatedAt DateTime?
 
-  users BrokerUser[]
+  users      BrokerUser[]
+  properties Property[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -321,8 +326,9 @@ model BrokerUser {
   activatedAt DateTime?
   lastLoginAt DateTime?
 
-  sessions BrokerSession[]
-  tokens   BrokerToken[]
+  sessions          BrokerSession[]
+  tokens            BrokerToken[]
+  propertiesCreated Property[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -377,4 +383,197 @@ model BrokerAuthAttempt {
 
   @@index([email, createdAt])
   @@index([ip, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Properties: what a broker lists, built step by step in the broker app's
+// "Add property" wizard (app.getomnirent.com/properties).
+//
+// A property belongs to one broker company. It is saved as a draft at every
+// step, so a broker can stop and come back. Publishing to channels (through
+// Channex) comes in a later release; until then every property stays a
+// draft. The Channex mapping of each field is in the design notes and in
+// lib/property-rules.ts.
+//
+// Unit types, rates and taxes hang off the property. All prices are in the
+// property's currency.
+// ---------------------------------------------------------------------------
+
+enum PropertyStatus {
+  DRAFT // never published
+  SYNCING // being sent to channels
+  SYNCED // published
+  SYNC_FAILED // the last publish was rejected; the broker fixes it and retries
+}
+
+model Property {
+  id       String @id @default(cuid())
+  brokerId String
+  broker   Broker @relation(fields: [brokerId], references: [id], onDelete: Restrict)
+
+  // Step 1: Basics
+  propertyTypeId String?
+  propertyType   PropertyType? @relation(fields: [propertyTypeId], references: [id], onDelete: Restrict)
+  nickname       String // only the broker's team sees it
+  titleEn        String        @default("") // shown to guests on channels
+  titleAr        String        @default("")
+  email          String        @default("")
+  phone          String        @default("")
+  currency       String        @default("EGP") // ISO 4217
+
+  // Step 2: Location
+  countryId  String?
+  country    Country? @relation(fields: [countryId], references: [id], onDelete: Restrict)
+  cityId     String?
+  city       City?    @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  compound   String   @default("") // Omnirent only, for search and filters
+  address    String   @default("")
+  postalCode String   @default("")
+  latitude   Decimal? @db.Decimal(9, 6)
+  longitude  Decimal? @db.Decimal(9, 6)
+  // Copied from the country when it is picked (IANA, e.g. "Africa/Cairo").
+  timezone   String   @default("")
+
+  // Step 3: Units
+  rentMode RentMode @default(WHOLE)
+
+  // Step 5: House policies. Option values are listed in lib/property-rules.ts.
+  cancellationPolicy String   @default("flexible")
+  checkInTime        String   @default("15:00")
+  checkOutTime       String   @default("12:00")
+  maxGuests          Int?
+  adultsOnly         Boolean  @default(false)
+  internetType       String   @default("wifi")
+  internetCoverage   String   @default("all_rooms")
+  internetCost       Decimal? @db.Decimal(12, 2) // empty = free
+  parkingType        String   @default("on_site")
+  parkingReservation String   @default("not_needed")
+  parkingPrivate     Boolean  @default(true)
+  petsPolicy         String   @default("not_allowed")
+  petFee             Decimal  @default(0) @db.Decimal(12, 2)
+  petDeposit         Decimal  @default(0) @db.Decimal(12, 2)
+  smokingPolicy      String   @default("no_smoking")
+
+  // Step 7: Listing content. Channels get the English description; the
+  // Arabic one stays in Omnirent.
+  descriptionEn String   @default("")
+  descriptionAr String   @default("")
+  importantInfo String   @default("")
+  website       String   @default("")
+  facilities    String[] @default([])
+
+  // The furthest wizard step the broker has completed (1 to 8), so the
+  // wizard reopens where they left off.
+  stepsDone Int @default(0)
+
+  status     PropertyStatus @default(DRAFT)
+  // Archived properties stay in the list (status "Archived") and keep all data.
+  archivedAt DateTime?
+
+  createdById String?
+  createdBy   BrokerUser? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  unitTypes UnitType[]
+  taxes     PropertyTax[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([brokerId])
+  @@index([cityId])
+  @@index([propertyTypeId])
+}
+
+enum UnitKind {
+  UNIT // "Whole unit" mode: a type of identical apartments, sold as one
+  ROOM // "Rooms separately" and "Both" modes: one room
+  WHOLE // "Both" mode: the whole apartment, whose calendar is linked to its rooms
+}
+
+// A unit type (Whole unit mode) or a room (Rooms / Both modes). Becomes a
+// Channex room type; `count` is Channex's count_of_rooms ("Identical
+// quantity"), always 1 for rooms and the whole apartment.
+model UnitType {
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  kind       UnitKind @default(UNIT)
+  name       String
+  count      Int      @default(1)
+  adults     Int      @default(2)
+  children   Int      @default(0) // child-only beds
+  infants    Int      @default(0) // infant cots
+  bedrooms   Int?
+  beds       Int      @default(1)
+  bathrooms  Int?
+  // Rooms only: "private" or "shared".
+  bathroom   String?
+  sortOrder  Int      @default(0)
+
+  rates RatePlan[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([propertyId])
+}
+
+// A price for one unit type. The standard rate has no parent; a derived rate
+// (e.g. non-refundable, 10% less) points at its standard rate and follows its
+// price, minimum stay and closed-to-arrival days.
+model RatePlan {
+  id         String   @id @default(cuid())
+  unitTypeId String
+  unitType   UnitType @relation(fields: [unitTypeId], references: [id], onDelete: Cascade)
+  name       String
+
+  // "per_unit" (Channex per_room) or "per_guest" (per_person).
+  sellMode           String  @default("per_unit")
+  price              Decimal @default(0) @db.Decimal(12, 2)
+  // How many guests the price covers (Channex occupancy).
+  guests             Int     @default(1)
+  childFee           Decimal @default(0) @db.Decimal(12, 2)
+  infantFee          Decimal @default(0) @db.Decimal(12, 2)
+  meals              String  @default("none")
+  minStay            Int     @default(1) // on arrival
+  maxStay            Int     @default(0) // 0 = no limit
+  // Empty = same as the property's default cancellation policy.
+  cancellationPolicy String  @default("")
+  // Weekdays closed to arrival, 1 = Monday ... 7 = Sunday.
+  closedToArrival    Int[]   @default([])
+
+  parentId    String?
+  parent      RatePlan?  @relation("DerivedRates", fields: [parentId], references: [id], onDelete: Cascade)
+  derived     RatePlan[] @relation("DerivedRates")
+  // Derived rates only: "decrease_percent" or "decrease_amount", and by how much.
+  adjustment  String?
+  adjustValue Decimal?   @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([unitTypeId])
+}
+
+// A tax or fee added to bookings (Channex Tax, in the property's default tax set).
+model PropertyTax {
+  id         String    @id @default(cuid())
+  propertyId String
+  property   Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name       String
+  kind       String // "tax", "fee" or "city_tax"
+  // "per_booking", "percent", "per_night", "per_guest" or "per_guest_per_night".
+  logic      String
+  amount     Decimal   @db.Decimal(12, 2)
+  inclusive  Boolean   @default(false)
+  startsOn   DateTime? @db.Date
+  endsOn     DateTime? @db.Date
+  skipNights Int?
+  maxNights  Int?
+  sortOrder  Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([propertyId])
 }
