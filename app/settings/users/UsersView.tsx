@@ -10,6 +10,7 @@ import {
   type RowActionResult,
   type UserFormState,
 } from "@/app/actions/settings";
+import { submitKeepingValues } from "@/lib/form-submit";
 import { DICTS, type Dict, type Lang } from "@/lib/i18n";
 import { Dialog, Drawer, Toast } from "@/components/ops/Overlay";
 import { AlertCircle, Chevron, More, Pencil, Plus, Search, Spinner, UserPlus, Users as UsersIcon } from "@/components/ops/icons";
@@ -508,7 +509,7 @@ function UserForm({
   const lockRole = Boolean(user && (user.isMe || user.isLastSuperAdmin));
 
   return (
-    <form action={action} className="contents">
+    <form onSubmit={submitKeepingValues(action)} className="contents">
       <Drawer
         title={editing ? t.editUser : t.addUser}
         description={editing ? t.editUserBody : t.addUserBody}

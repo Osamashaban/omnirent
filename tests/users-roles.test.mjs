@@ -198,3 +198,15 @@ test("link secrets are random and only their hash is stored", () => {
   assert.equal(hashSecret(secret), hashSecret(secret));
   assert.ok(!hashSecret(secret).includes(secret));
 });
+
+// React clears a <form action={...}> after every submit. On Add user that left
+// the role box showing Super Admin while the chosen role was still remembered,
+// so fixing a typo and sending invited a Super Admin. Forms with a role picker
+// or module ticks must submit without that reset.
+test("Add user and role forms keep the chosen role and modules after an error", () => {
+  for (const file of ["app/settings/users/UsersView.tsx", "app/settings/roles/RolesView.tsx"]) {
+    const source = readFileSync(join(repoRoot, file), "utf8");
+    assert.ok(!/<form\s+action=\{/.test(source), `${file} uses <form action>, which React resets after submit`);
+    assert.match(source, /<form onSubmit=\{submitKeepingValues\(action\)\}/, file);
+  }
+});
