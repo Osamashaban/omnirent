@@ -8,11 +8,13 @@ import { matchesSearch, type ListStatus } from "@/lib/property-rules";
 import { BrokerMain, BrokerMenuBar } from "@/components/broker/BrokerShell";
 import { Plus, Search } from "@/components/ops/icons";
 import { secondaryButtonClass, smallPrimaryButtonClass } from "@/components/ops/ui";
-import { Building } from "@/components/broker/property-icons";
+import { Building, Plug } from "@/components/broker/property-icons";
 import { EmptyBox, StatusChip, Thumb, TypeChip } from "./parts";
 import { ListFilters } from "./ListFilters";
 import { RowMenu } from "./PropertyActions";
 import { FlashToast } from "./FlashToast";
+import { CHANNEL_DICTS } from "@/lib/channel-i18n";
+import { connectedCounts } from "@/lib/channel-data";
 
 export const metadata: Metadata = { title: "Omnirent · Properties" };
 
@@ -26,7 +28,8 @@ export default async function BrokerPropertiesPage({ searchParams }: Props) {
   const current = await requireBroker();
   const [lang, params] = await Promise.all([getLang(), searchParams]);
   const p = PROPERTY_DICTS[lang];
-  const all = await listProperties(current.broker.id, lang);
+  const [all, connected] = await Promise.all([listProperties(current.broker.id, lang), connectedCounts(current.broker.id)]);
+  const ct = CHANNEL_DICTS[lang];
 
   const q = (params.q ?? "").slice(0, 100);
   const status = STATUSES.find((s) => s === params.status) ?? "";
@@ -107,6 +110,7 @@ export default async function BrokerPropertiesPage({ searchParams }: Props) {
                         <th className="px-4 py-3 text-start font-semibold">{p.colType}</th>
                         <th className="px-4 py-3 text-start font-semibold">{p.colUnits}</th>
                         <th className="px-4 py-3 text-start font-semibold">{p.colPrice}</th>
+                        <th className="whitespace-nowrap px-4 py-3 text-start font-semibold">{ct.colConnected}</th>
                         <th className="px-4 py-3 text-start font-semibold">{p.colStatus}</th>
                         <th className="w-14 px-4 py-3">
                           <span className="sr-only">{p.actions}</span>
@@ -130,6 +134,18 @@ export default async function BrokerPropertiesPage({ searchParams }: Props) {
                           <td className="px-4 py-3 text-[14px] tabular-nums text-[#374151]">{r.units}</td>
                           <td className="px-4 py-3 text-[14px] tabular-nums text-[#111827]">{r.price ?? "—"}</td>
                           <td className="px-4 py-3">
+                            <a
+                              href={`/broker/properties/${r.id}?tab=channels`}
+                              aria-label={ct.connectedOn(connected[r.id] ?? 0)}
+                              className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[#E5E7EB] bg-white px-2.5 text-[14px] font-bold tabular-nums text-[#111827] no-underline"
+                            >
+                              <span className="flex text-[#3B6D11]">
+                                <Plug size={14} />
+                              </span>
+                              {connected[r.id] ?? 0}
+                            </a>
+                          </td>
+                          <td className="px-4 py-3">
                             <StatusChip status={r.status} label={p.status[r.status]} />
                           </td>
                           <td className="px-4 py-3 text-end">
@@ -140,7 +156,7 @@ export default async function BrokerPropertiesPage({ searchParams }: Props) {
                     </tbody>
                     <tfoot>
                       <tr className="border-t border-[#F3F4F6]">
-                        <td colSpan={7} className="px-4 py-3 text-[13px] text-[#4B5563]">
+                        <td colSpan={8} className="px-4 py-3 text-[13px] text-[#4B5563]">
                           {p.listCount(rows.length, rows.reduce((sum, r) => sum + r.units, 0))}
                         </td>
                       </tr>

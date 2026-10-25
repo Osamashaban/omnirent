@@ -7,10 +7,10 @@
 import type { Email } from "./email";
 import type { Lang } from "./i18n";
 
-const esc = (value: string) =>
+export const esc = (value: string) =>
   value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-function layout(lang: Lang, body: string) {
+export function layout(lang: Lang, body: string) {
   const dir = lang === "ar" ? "rtl" : "ltr";
   const footer =
     lang === "ar"
@@ -26,10 +26,10 @@ function layout(lang: Lang, body: string) {
 </div></body></html>`;
 }
 
-const h1 = (text: string) => `<h1 style="margin:0 0 18px;font-size:24px;font-weight:700">${esc(text)}</h1>`;
-const p = (html: string) => `<p style="margin:0 0 18px;font-size:16px;line-height:1.7;color:#4B5563">${html}</p>`;
+export const h1 = (text: string) => `<h1 style="margin:0 0 18px;font-size:24px;font-weight:700">${esc(text)}</h1>`;
+export const p = (html: string) => `<p style="margin:0 0 18px;font-size:16px;line-height:1.7;color:#4B5563">${html}</p>`;
 const small = (html: string) => `<p style="margin:0 0 18px;font-size:14px;line-height:1.7;color:#4B5563">${html}</p>`;
-const button = (href: string, label: string) =>
+export const button = (href: string, label: string) =>
   `<p style="margin:0 0 18px"><a href="${esc(href)}" style="display:inline-block;padding:14px 28px;border-radius:8px;background:#639922;color:#FFFFFF;font-size:16px;font-weight:600;text-decoration:none">${esc(label)}</a></p>`;
 const plainLink = (lang: Lang, href: string) =>
   `<div style="padding-top:16px;border-top:1px solid #E5E7EB;font-size:13px;color:#6B7280">${

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { publishProperty, saveProperty } from "@/app/actions/properties";
 import type { Lang } from "@/lib/i18n";
+import { CHANNEL_DICTS } from "@/lib/channel-i18n";
 import { PROPERTY_DICTS } from "@/lib/property-i18n";
 import { STEP_COUNT, checkStep, pricedUnits, type FormErrors, type PropertyForm, type StepContext } from "@/lib/property-rules";
 import { AlertCircle, Check, Spinner } from "@/components/ops/icons";
@@ -106,7 +107,7 @@ export function Wizard({ lang, options, id: initialId, initialForm, stepsDone: i
         } else if (result.error === "signedOut") {
           router.push("/broker/login");
         } else {
-          setNotice(p.saveFailed);
+          setNotice(result.error === "unitBooked" ? CHANNEL_DICTS[lang].unitDeleteBlocked : p.saveFailed);
         }
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
@@ -153,7 +154,7 @@ export function Wizard({ lang, options, id: initialId, initialForm, stepsDone: i
       if (!saved.ok) {
         if ("errors" in saved) setErrors(saved.errors);
         else if (saved.error === "signedOut") return router.push("/broker/login");
-        else setNotice(p.saveFailed);
+        else setNotice(saved.error === "unitBooked" ? CHANNEL_DICTS[lang].unitDeleteBlocked : p.saveFailed);
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
