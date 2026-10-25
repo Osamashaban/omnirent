@@ -315,7 +315,7 @@ export function PlatformsTab({ ctx }: { ctx: Ctx }) {
               <div key={c.p.id} className="flex flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white p-4">
                 <div className="flex items-center gap-3">
                   <Tile p={c.p} />
-                  <span className="min-w-0 flex-1 truncate text-[15px] font-bold" title={c.p.name}>
+                  <span dir="ltr" className="min-w-0 flex-1 truncate rtl:text-right text-[15px] font-bold" title={c.p.name}>
                     {c.p.name}
                   </span>
                 </div>
@@ -421,7 +421,7 @@ function PhoneRows({ ctx, cards }: { ctx: Ctx; cards: Card[] }) {
           <div className="flex items-center gap-3">
             <Tile p={c.p} font={15} />
             <span className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="truncate text-[15px] font-bold">{c.p.name}</span>
+              <span dir="ltr" className="truncate rtl:text-right text-[15px] font-bold">{c.p.name}</span>
               <span className="flex flex-wrap items-center gap-1.5">
                 <Pill st={c.st} label={t.st[c.st]} />
                 <span className="text-[12px] text-[#4B5563]">{c.phoneCount}</span>

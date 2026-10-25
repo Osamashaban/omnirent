@@ -134,7 +134,7 @@ export function PropertyChannels({ lang, data: initial, propertyId }: { lang: La
                       <span className="flex items-center gap-2">
                         <Tile p={p} size={24} radius={6} font={11} />
                         <span className="flex min-w-0 flex-col">
-                          <span className="truncate text-[#111827]">{p.name}</span>
+                          <span dir="ltr" className="truncate rtl:text-right text-[#111827]">{p.name}</span>
                           <span className="font-semibold text-[#1D4ED8]">{priceOf(p)}</span>
                         </span>
                       </span>

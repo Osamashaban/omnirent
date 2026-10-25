@@ -146,7 +146,7 @@ export function LinksTab({ ctx }: { ctx: Ctx }) {
                     <div key={p.id} className="flex min-w-0 flex-[1_1_0] items-center gap-2 border-s border-[#E5E7EB] px-3 py-2.5">
                       <Tile p={p} size={24} radius={6} font={11} />
                       <span className="flex min-w-0 flex-col">
-                        <span className="truncate text-[13px] font-bold">{p.name}</span>
+                        <span dir="ltr" className="truncate rtl:text-right text-[13px] font-bold">{p.name}</span>
                         <span className={`text-[11px] font-semibold ${st === "on" ? "text-[#15803D]" : st === "wait" ? "text-[#92400E]" : st === "attn" ? "text-[#B91C1C]" : "text-[#4B5563]"}`}>
                           {t.st[st]}
                         </span>
