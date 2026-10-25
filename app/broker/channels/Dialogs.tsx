@@ -525,7 +525,7 @@ function SignIn({ ctx, p, re, onClose }: { ctx: Ctx; p: Platform; re: boolean; o
       return;
     }
     setStep("cred");
-    setErr(r.kind === "error" && r.error === "auth" ? t.vpErrAuth(p.name) : r.kind === "error" && r.error === "allConnected" ? t.errAllConnected : t.errReach);
+    setErr(r.kind === "error" && r.error === "auth" ? t.vpErrAuth(p.name) : r.kind === "error" && r.error === "allConnected" ? t.errAllConnected : t.failReach);
   };
   const connect = async () => {
     if (!/^\d{6}$/.test(code.trim())) return setErr(t.vpErrCode6);
@@ -535,7 +535,7 @@ function SignIn({ ctx, p, re, onClose }: { ctx: Ctx; p: Platform; re: boolean; o
     if (r.kind === "error" && r.error === "auth") {
       setStep("cred");
       setErr(t.vpErrAuth(p.name));
-    } else setErr(r.kind === "error" && r.error === "code" ? t.vpErrCode : t.errReach);
+    } else setErr(r.kind === "error" && r.error === "code" ? t.vpErrCode : t.failReach);
   };
   const resend = async () => {
     setErr("");
@@ -543,7 +543,7 @@ function SignIn({ ctx, p, re, onClose }: { ctx: Ctx; p: Platform; re: boolean; o
     const r = await attempt();
     if (done(r)) return;
     if (r.kind === "error" && r.error === "otp") setNote(t.vpResent);
-    else setErr(t.errReach);
+    else setErr(t.failReach);
   };
 
   return (
