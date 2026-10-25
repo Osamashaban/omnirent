@@ -110,6 +110,9 @@ export async function testConnection(code: string, settings: Record<string, unkn
     return { ok: false, failure: classifyFailure(answer.body) };
   } catch (e) {
     if (e instanceof ChannexError && e.status >= 400 && e.status < 500) return { ok: false, failure: classifyFailure(e.body) };
+    // No answer in time, or an error on their side: the platform couldn't be
+    // reached (for a made-up property ID the check can run past our timeout).
+    if (e instanceof ChannexError) return { ok: false, failure: "reach" };
     throw e;
   }
 }
