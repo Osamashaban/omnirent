@@ -1,5 +1,5 @@
 // The signed-in broker app frame (app.getomnirent.com): sidebar on desktop
-// with the company card, the Properties and Calendar links and the user card;
+// with the company card, the Properties, Calendar and Channels links and the user card;
 // under 900px a top bar instead. As in Ops, the language button sits above
 // the user card.
 
@@ -12,10 +12,10 @@ import { LogoMark, Wordmark } from "@/components/ops/Logo";
 import { MobileMenu } from "@/components/ops/MobileMenu";
 import { LogOut, X } from "@/components/ops/icons";
 import { Initials } from "@/components/ops/ui";
-import { Building, CalendarIcon } from "./property-icons";
+import { Building, CalendarIcon, Plug } from "./property-icons";
 import { BrokerLangButton } from "./BrokerLangButton";
 
-export type BrokerSection = "properties" | "calendar";
+export type BrokerSection = "properties" | "calendar" | "channels";
 
 // The frame is the layout of every Properties and Calendar page, so the
 // sidebar stays put while pages load. Each page draws its own phone top bar:
@@ -71,12 +71,15 @@ export function BrokerMenuBar({
   p,
   title,
   section = "properties",
+  action,
 }: {
   current: CurrentBroker;
   lang: Lang;
   p: PropertyDict;
   title: string;
   section?: BrokerSection;
+  // Shown instead of the user's initials (the Channels bell).
+  action?: React.ReactNode;
 }) {
   return (
     <header className={phoneBarClass}>
@@ -85,8 +88,12 @@ export function BrokerMenuBar({
         <SideNav p={p} section={section} />
       </MobileMenu>
       <span className="min-w-0 flex-1 truncate text-[17px] font-bold">{title}</span>
-      <Initials name={current.user.name} size={32} />
-      <span className="w-2" />
+      {action ?? (
+        <>
+          <Initials name={current.user.name} size={32} />
+          <span className="w-2" />
+        </>
+      )}
     </header>
   );
 }
@@ -147,6 +154,10 @@ function SideNav({ p, section }: { p: PropertyDict; section: BrokerSection }) {
       <Link href="/broker/calendar" aria-current={section === "calendar" ? "page" : undefined} className={navLinkClass}>
         <CalendarIcon />
         {p.calendar}
+      </Link>
+      <Link href="/broker/channels" aria-current={section === "channels" ? "page" : undefined} className={navLinkClass}>
+        <Plug />
+        {p.channels}
       </Link>
     </nav>
   );

@@ -15,6 +15,9 @@ import { readSyncError, stageStates } from "@/lib/channex-payload";
 import { InfoBox, StatusChip, Thumb, TypeChip } from "../parts";
 import { HeaderActions } from "../PropertyActions";
 import { FlashToast } from "../FlashToast";
+import { CHANNEL_DICTS } from "@/lib/channel-i18n";
+import { loadChannels } from "@/lib/channel-data";
+import { ManageAllLink, PropertyChannels } from "../../channels/PropertyChannels";
 import { RetryPublish, SyncWatcher } from "../Publish";
 import { SyncLines, failureText, timeAgo } from "../sync-list";
 
@@ -57,6 +60,9 @@ export default async function PropertyPage({ params, searchParams }: Props) {
   // Units and rates show the property's publish state.
   const rowStatus = status === "synced" || status === "syncing" || status === "failed" ? status : "draft";
   const policyName = (c: string) => (c ? (p.policies[c]?.[0] ?? c) : p.sameAsPropertyShort);
+  // The Channels tab reads the broker's whole channel state (narrowed to this
+  // property on screen), the same as the Channels page.
+  const channels = tab === "channels" ? await loadChannels(current.broker.id, current.user.name, current.broker.companyName) : null;
   const th = "px-4 py-3 text-start text-[12px] font-semibold text-[#374151]";
   const td = "border-t border-[#F3F4F6] px-4 py-3 text-[14px]";
   const stat = (label: string, value: string, sub: string) => (
@@ -90,7 +96,8 @@ export default async function PropertyPage({ params, searchParams }: Props) {
                 <span className="text-[14px] text-[#4B5563]">{subtitle}</span>
               </div>
             </div>
-            <div className="max-[899px]:hidden">
+            <div className="flex items-start gap-2.5 max-[899px]:hidden">
+              {tab === "channels" && <ManageAllLink label={CHANNEL_DICTS[lang].manageAll} />}
               <HeaderActions lang={lang} target={{ id: property.id, nickname: property.nickname, units: total }} archived={status === "archived"} />
             </div>
           </div>
@@ -307,34 +314,7 @@ export default async function PropertyPage({ params, searchParams }: Props) {
           </>
         )}
 
-        {tab === "channels" && (
-          <>
-            <InfoBox title={p.channelsComing}>{p.channelsComingBody}</InfoBox>
-            <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-2">
-              {(
-                [
-                  ["Airbnb", "A", "bg-[#FF5A5F]"],
-                  ["Booking.com", "B.", "bg-[#003580]"],
-                  ["Expedia", "E", "bg-[#1F2937]"],
-                  ["Google Vacation Rentals", "G", "bg-[#4285F4]"],
-                ] as const
-              ).map(([channel, letter, color]) => (
-                <div key={channel} className="flex items-center gap-3.5 rounded-xl border border-[#E5E7EB] bg-white p-4">
-                  <span aria-hidden="true" className={`flex h-10 w-10 flex-none items-center justify-center rounded-lg text-[13px] font-bold text-white ${color}`}>
-                    {letter}
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span dir="ltr" className="text-start text-[15px] font-semibold">
-                      {channel}
-                    </span>
-                    <span className="text-[13px] text-[#4B5563]">{p.notConnected}</span>
-                  </span>
-                  <span className="rounded-md bg-[#F3F4F6] px-2 py-1 text-[12px] font-semibold text-[#374151]">{p.soon}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
+        {tab === "channels" && channels && <PropertyChannels lang={lang} data={channels} propertyId={property.id} />}
 
         <div className="min-[900px]:hidden">
           <HeaderActions lang={lang} target={{ id: property.id, nickname: property.nickname, units: total }} archived={status === "archived"} />

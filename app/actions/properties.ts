@@ -9,6 +9,7 @@ import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { channexConfigured } from "@/lib/channex";
 import { pushRestrictions } from "@/lib/channex-ari";
+import { unitHasUpcomingBookings } from "@/lib/channel-data";
 import { SYNC_STALE_MS, isSyncStage, readSyncError, sellWindow, type SyncError, type SyncStage } from "@/lib/channex-payload";
 import { runPublish } from "@/lib/channex-sync";
 import { getCurrentBroker } from "@/lib/broker-auth";
@@ -30,7 +31,7 @@ import {
 export type SaveResult =
   | { ok: true; id: string; form: PropertyForm; stepsDone: number; savedAt: number }
   | { ok: false; errors: FormErrors }
-  | { ok: false; error: "signedOut" | "notFound" | "failed" };
+  | { ok: false; error: "signedOut" | "notFound" | "failed" | "unitBooked" };
 
 // Saves the whole form. "next" first checks the current step and refuses to
 // move on while it has mistakes; "draft" saves whatever is there, as long as
@@ -72,6 +73,12 @@ export async function saveProperty(input: { id: string | null; step: number; mod
     ? ((await prisma.country.findUnique({ where: { id: country.id }, select: { timezone: true } }))?.timezone ?? "")
     : "";
   const stepsDone = mode === "next" ? Math.max(existing?.stepsDone ?? 0, step) : (existing?.stepsDone ?? 0);
+
+  // A unit type with upcoming bookings from a platform can't be removed.
+  const keptIds = new Set(clean.units.map((u) => u.id));
+  for (const u of existing?.unitTypes ?? []) {
+    if (!keptIds.has(u.id) && (await unitHasUpcomingBookings(u.id))) return { ok: false, error: "unitBooked" };
+  }
 
   try {
     const id = await prisma.$transaction(async (tx) => {

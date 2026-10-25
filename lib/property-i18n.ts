@@ -14,6 +14,7 @@ const ar = {
   // Frame
   properties: "العقارات",
   calendar: "التقويم",
+  channels: "القنوات",
   brokerAccount: "حساب الوسيط",
   accountAdmin: "مدير الحساب",
   signOut: "تسجيل الخروج",
@@ -472,6 +473,7 @@ export type PropertyDict = typeof ar;
 const en: PropertyDict = {
   properties: "Properties",
   calendar: "Calendar",
+  channels: "Channels",
   brokerAccount: "Broker account",
   accountAdmin: "Account admin",
   signOut: "Sign out",
