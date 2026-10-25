@@ -15,6 +15,10 @@ const plexArabic = IBM_Plex_Sans_Arabic({
 export const metadata: Metadata = {
   title: "Omnirent",
   description: "List once. Reach everywhere.",
+  // The app has its own Arabic and English. When a browser translates the
+  // page itself, it rewrites text React owns and the next update crashes the
+  // page ("Application error"), so automatic translation is turned off.
+  other: { google: "notranslate" },
 };
 
 export default function RootLayout({
@@ -23,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${outfit.variable} ${plexArabic.variable} ${dmSans.variable}`}>
+    <html lang="en" translate="no" className={`${outfit.variable} ${plexArabic.variable} ${dmSans.variable}`}>
       <body className="min-h-screen antialiased">{children}</body>
     </html>
   );
