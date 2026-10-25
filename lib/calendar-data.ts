@@ -6,6 +6,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { OPS_TIME_ZONE } from "./dates";
 import { channexConfigured } from "./channex";
+import { bookedNights } from "./channel-rules";
 import type { Lang } from "./i18n";
 import {
   BLOCK_REASONS,
@@ -295,9 +296,13 @@ async function ariFor(tx: Tx, nights: (Target & { override: Override | null })[]
   );
   const out: Record<string, AriValues> = {};
   for (const [propertyId, ids] of idsByProperty) {
-    const mine = nights
-      .filter((n) => n.type.propertyId === propertyId)
-      .map((n) => ({ type: n.type, date: n.date, night: nightOf(n.type, n.date, n.override ?? undefined) }));
+    const list = nights.filter((n) => n.type.propertyId === propertyId);
+    const booked = await bookedMap(tx, list);
+    const mine = list.map((n) => ({
+      type: n.type,
+      date: n.date,
+      night: nightOf(n.type, n.date, n.override ?? undefined, booked.get(overrideKey(n.type.id, n.date)) ?? 0),
+    }));
     const values = buildAri(ids, mine);
     if (values.restrictions.length || values.availability.length) out[propertyId] = values;
   }
@@ -343,8 +348,33 @@ export async function calendarAri(propertyId: string, from: string, to: string):
     where: { unitTypeId: { in: types.map((t) => t.id) }, date: { gte: new Date(from), lte: new Date(to) } },
   });
   const stored = new Map(days.map((d) => [overrideKey(d.unitTypeId, d.date.toISOString().slice(0, 10)), rowToOverride(d)]));
+  const booked = await bookedMap(prisma, types.map((t) => ({ type: t, date: from })).concat(types.map((t) => ({ type: t, date: to }))));
   const nights = types.flatMap((type) =>
-    dateRange(from, to).map((date) => ({ type, date, night: nightOf(type, date, stored.get(overrideKey(type.id, date))) })),
+    dateRange(from, to).map((date) => ({
+      type,
+      date,
+      night: nightOf(type, date, stored.get(overrideKey(type.id, date)), booked.get(overrideKey(type.id, date)) ?? 0),
+    })),
   );
   return buildAri(ids, nights);
+}
+
+// Units already booked on the platforms, per unit type and night, so the
+// availability sent to Channex leaves them out (Channex lowers availability
+// when a booking arrives; without this our next send would undo that).
+async function bookedMap(tx: Tx | typeof prisma, nights: { type: { id: string }; date: string }[]): Promise<Map<string, number>> {
+  if (!nights.length) return new Map();
+  const dates = nights.map((n) => n.date).sort();
+  const rows = await tx.channelBooking.findMany({
+    where: {
+      unitTypeId: { in: [...new Set(nights.map((n) => n.type.id))] },
+      status: { not: "cancelled" },
+      arrival: { lte: new Date(dates[dates.length - 1]) },
+      departure: { gt: new Date(dates[0]) },
+    },
+    select: { unitTypeId: true, arrival: true, departure: true, status: true, rooms: true },
+  });
+  return bookedNights(
+    rows.map((r) => ({ ...r, arrival: r.arrival.toISOString().slice(0, 10), departure: r.departure.toISOString().slice(0, 10) })),
+  );
 }
