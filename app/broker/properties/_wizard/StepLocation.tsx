@@ -63,7 +63,7 @@ export function StepLocation({ form, update, errors, p, lang, options, ratesSave
             <NumberInput id="longitude" value={form.longitude} onChange={(v) => set({ longitude: v })} error={errors.longitude} placeholder="28.6431" />
           </Field>
           <Field id="timezone" label={p.timezone} hint={p.timezoneHint} p={p} className="min-[700px]:col-span-2">
-            <input id="timezone" readOnly value={country?.timezone ?? "—"} dir="ltr" className={`${fieldInput} bg-[#F9FAFB]`} />
+            <input id="timezone" readOnly value={country?.timezone ?? "-"} dir="ltr" className={`${fieldInput} bg-[#F9FAFB]`} />
           </Field>
         </Grid>
       </Card>

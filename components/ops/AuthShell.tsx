@@ -37,14 +37,14 @@ export function AuthShell({
             {children}
           </div>
         </main>
-        <footer className="flex justify-center gap-4 text-[13px] text-[#6B7280] min-[900px]:justify-start">
+        <footer className="flex items-center justify-center gap-4 text-[13px] text-[#6B7280] min-[900px]:justify-start">
           <span>© 2026 Omnirent</span>
           <span>·</span>
-          <a href="https://getomnirent.com" className="text-[#6B7280] hover:text-[#111827]">
+          <a href="https://getomnirent.com" className="inline-flex items-center text-[#6B7280] hover:text-[#111827] max-[899px]:min-h-8">
             {t.help}
           </a>
           <span>·</span>
-          <a href="https://getomnirent.com" className="text-[#6B7280] hover:text-[#111827]">
+          <a href="https://getomnirent.com" className="inline-flex items-center text-[#6B7280] hover:text-[#111827] max-[899px]:min-h-8">
             {t.privacy}
           </a>
         </footer>

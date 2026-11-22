@@ -144,7 +144,7 @@ export default async function PropertyPage({ params, searchParams }: Props) {
           <>
             <div className="grid grid-cols-2 gap-3 min-[1100px]:grid-cols-4">
               {stat(p.statUnits, String(total), p.statTypes(units.length))}
-              {stat(p.statFrom, price === null ? "—" : money(price), p.perNight)}
+              {stat(p.statFrom, price === null ? "-" : money(price), p.perNight)}
               {stat(p.statRates, String(rates.length), p.statRatesSplit(standard.length, derived.length))}
               {stat(p.statChannels, "0", p.statChannelsHint)}
             </div>
@@ -164,12 +164,12 @@ export default async function PropertyPage({ params, searchParams }: Props) {
                 <dl className="m-0 grid grid-cols-[minmax(110px,35%)_1fr] gap-x-4 gap-y-2 text-[14px]">
                   {(
                     [
-                      [p.type, name(property.propertyType) || "—"],
-                      [p.location, [property.compound, name(property.city)].filter(Boolean).join(lang === "ar" ? "، " : ", ") || "—"],
+                      [p.type, name(property.propertyType) || "-"],
+                      [p.location, [property.compound, name(property.city)].filter(Boolean).join(lang === "ar" ? "، " : ", ") || "-"],
                       [p.checkInOut, `${property.checkInTime} / ${property.checkOutTime}`],
-                      [p.cancellation, p.policies[property.cancellationPolicy]?.[0] ?? "—"],
+                      [p.cancellation, p.policies[property.cancellationPolicy]?.[0] ?? "-"],
                       [p.currency, property.currency],
-                      [p.contact, property.email || "—"],
+                      [p.contact, property.email || "-"],
                     ] as [string, string][]
                   ).map(([k, v]) => (
                     <div key={k} className="contents">
@@ -258,7 +258,7 @@ export default async function PropertyPage({ params, searchParams }: Props) {
                           </span>
                         </td>
                         <td className={td}>{r.unit.name}</td>
-                        <td className={`${td} tabular-nums`}>{Number(r.price) > 0 ? money(Number(r.price)) : "—"}</td>
+                        <td className={`${td} tabular-nums`}>{Number(r.price) > 0 ? money(Number(r.price)) : "-"}</td>
                         <td className={td}>{p.nightsCount(r.minStay)}</td>
                         <td className={td}>{policyName(r.cancellationPolicy)}</td>
                         <td className={td}>
@@ -289,7 +289,7 @@ export default async function PropertyPage({ params, searchParams }: Props) {
                             </span>
                           </td>
                           <td className={td}>{r.unit.name}</td>
-                          <td className={`${td} tabular-nums`}>{Number(r.price) > 0 ? money(derivedPrice(Number(r.price), child.adjustment ?? "", value)) : "—"}</td>
+                          <td className={`${td} tabular-nums`}>{Number(r.price) > 0 ? money(derivedPrice(Number(r.price), child.adjustment ?? "", value)) : "-"}</td>
                           <td className={td}>{p.nightsCount(r.minStay)}</td>
                           <td className={td}>{policyName(child.cancellationPolicy)}</td>
                           <td className={td}>

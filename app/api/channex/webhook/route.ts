@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { ackRevision, bookingRevision } from "@/lib/channel-channex";
 import { ingestRevision, platformEvent } from "@/lib/channel-data";
+import { pullRequestsFor } from "@/lib/booking-data";
 
 // Events from our connection partner: new, changed and cancelled bookings,
 // and platform problems (access removed, a listing unlisted, a price
@@ -35,6 +36,9 @@ export async function POST(req: NextRequest) {
           await ackRevision(rev.id).catch(() => undefined);
         }
       }
+    } else if (["reservation_request", "inquiry", "alteration_request", "accepted_reservation", "declined_reservation"].includes(event)) {
+      // Airbnb requests to book and inquiries: read the open ones again.
+      await pullRequestsFor(id(body?.property_id));
     } else if (["disconnect_channel", "disconnect_listing", "rate_error", "sync_error"].includes(event)) {
       await platformEvent(event, payload, id(body?.property_id));
     }

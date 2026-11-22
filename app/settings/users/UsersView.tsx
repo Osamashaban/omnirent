@@ -299,7 +299,7 @@ function UsersTable({ t, rows, highlight, onPanel, onRowResult }: RowProps) {
               <td className={td}>
                 <StatusBadge t={t} status={u.status} />
               </td>
-              <td className={`${td} whitespace-nowrap text-[#4B5563]`}>{u.status === "INVITED" ? "—" : u.lastLogin}</td>
+              <td className={`${td} whitespace-nowrap text-[#4B5563]`}>{u.status === "INVITED" ? "-" : u.lastLogin}</td>
               <td className={`${td} w-14`}>
                 {u.isMe ? <span className="block w-10" /> : <RowMenu t={t} user={u} onPanel={onPanel} onRowResult={onRowResult} />}
               </td>

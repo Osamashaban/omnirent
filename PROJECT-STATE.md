@@ -199,3 +199,56 @@ come in later releases, in that order as Ossama decides.
   admin edits are stored. Types are archived, never deleted.
 - Starting rows (4 countries, 20 cities, 34 property types) are inserted by the
   migration itself, so staging and production start identical.
+
+## Channel connections (broker Channels page)
+
+Added 2026-10-25 (branch `channel-connections`, PR #17, stacked on `calendar`),
+from Claude Design version 80 ("Channel connections · ready for development").
+On staging since 2026-10-25; production waits on Ossama's "looks good",
+Samer's approval and certification with Channex (production key).
+
+- 77 platforms in `lib/channel-catalog.ts`. Airbnb connects through Channex's
+  Airbnb sign-in; VRBO through an Omnirent sign-in window (email, password,
+  SMS code); property-level platforms (Booking.com, Expedia, Hostelworld...)
+  connect one property at a time; support-type and no-guide platforms use the
+  ready message. Brokers create listings on the platforms themselves; there is
+  no "our team creates it" option. Brokers never see the name Channex except in
+  guide pictures and the ready message.
+- Bookings arrive by the Channex webhook (`/api/channex/webhook`, shared secret
+  `CHANNEX_WEBHOOK_SECRET`, set in Vercel Preview only so far) plus a backup
+  pull when the Channels page opens. Platform bookings take nights out of the
+  Calendar's availability.
+- Platform logins are encrypted with a key derived from `CHANNEX_API_KEY`;
+  changing that key means affected platforms must reconnect.
+- Global test 2026-10-25 on staging (all 77 platforms, made-up IDs): Hipcamp,
+  HeyTrip and HotelREZ accept a made-up ID as connected (Channex's check
+  doesn't verify it). The QA broker on staging keeps the connections that test
+  made (Booking.com and Google waiting, those three connected).
+- Google, currency and help requests are emailed to `CHANNELS_TEAM_EMAIL`; there
+  is no Ops screen for them yet.
+
+## Bookings and Guests (broker Bookings and Guests pages)
+
+Added 2026-11-22 (branch `bookings-guests`, stacked on `channel-connections`),
+from Claude Design version 87 (version id 1795265087-76d5, "Reservations and
+Guests, plus QA fixes"). Waiting on Ossama's "deploy" after the brief.
+
+- One list for platform and direct bookings (tabs, search, filters, CSV
+  export), Airbnb requests and inquiries (accept, pre-approve, decline with a
+  reason), a booking panel (payments, confirm, move between identical
+  apartments, cancel direct bookings, Booking.com no-show / invalid card
+  reports, team note, activity log) and guest profiles (VIP, Don't rent, notes,
+  ID document, merge duplicates by mobile, delete personal data).
+- Direct bookings are sent to Channex as CRS bookings so the dates close on
+  every platform; Channex's own revision for that booking is ignored when it
+  comes back (`ownDirectRevision`). Recording a payment on a pending direct
+  booking confirms it.
+- Airbnb requests come from Channex's live feed, pulled when the page opens and
+  when the webhook says a request arrived. Replying with a message stays on
+  Airbnb in this version.
+- Guest profiles are per broker company and matched by mobile, then email.
+  Deleting a guest's data blanks the profile but keeps the bookings (with
+  "Deleted guest") so payouts and history still add up.
+- Not built yet: booking bars in the Calendar ("In Calendar" opens the
+  Calendar without jumping to the booking), guest messaging, reviews, card
+  details.

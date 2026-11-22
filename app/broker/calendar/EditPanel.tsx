@@ -261,7 +261,7 @@ export function EditPanel({
               type="button"
               onClick={onReset}
               disabled={busy}
-              className="cursor-pointer self-start border-0 bg-transparent p-0 text-[14px] font-semibold text-[#3B6D11] disabled:opacity-60"
+              className="cursor-pointer self-start border-0 bg-transparent p-0 text-[14px] font-semibold text-[#3B6D11] disabled:opacity-60 max-[899px]:min-h-11"
             >
               {t.reset}
             </button>

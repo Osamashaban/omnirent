@@ -10,6 +10,7 @@ import { bookedNights } from "./channel-rules";
 import type { Lang } from "./i18n";
 import {
   BLOCK_REASONS,
+  addDays,
   buildAri,
   dateRange,
   isEmptyOverride,
@@ -377,4 +378,17 @@ async function bookedMap(tx: Tx | typeof prisma, nights: { type: { id: string };
   return bookedNights(
     rows.map((r) => ({ ...r, arrival: r.arrival.toISOString().slice(0, 10), departure: r.departure.toISOString().slice(0, 10) })),
   );
+}
+
+// The calendar price of each night of one unit type, from `from` up to (not
+// including) `to`: the night's change, or the standard rate. Direct bookings
+// start from these (Bookings page).
+export async function nightPrices(unitTypeId: string, from: string, to: string): Promise<{ d: string; p: number }[]> {
+  const row = await prisma.unitType.findUnique({ where: { id: unitTypeId }, include: typeInclude });
+  const type = row ? toCalType(row) : null;
+  if (!type || to <= from) return [];
+  const last = addDays(to, -1);
+  const days = await prisma.calendarDay.findMany({ where: { unitTypeId, date: { gte: new Date(from), lte: new Date(last) } } });
+  const stored = new Map(days.map((d) => [d.date.toISOString().slice(0, 10), rowToOverride(d)]));
+  return dateRange(from, last).map((d) => ({ d, p: nightOf(type, d, stored.get(d)).price }));
 }

@@ -84,7 +84,7 @@ const ar = {
   inviteExpiredTitle: "انتهت صلاحية الدعوة",
   inviteExpiredBody: "روابط الدعوة صالحة لمدة 7 أيام ولمرة واحدة فقط. اطلب من مسؤول النظام في فريقك إرسال دعوة جديدة.",
   ruleLength: "8 أحرف على الأقل",
-  ruleCases: "حرف كبير وحرف صغير (A-z)",
+  ruleCases: "حرف كبير وحرف صغير (A-Z و a-z)",
   ruleNumber: "رقم واحد على الأقل",
   passwordTooWeak: "كلمة المرور لا تستوفي الشروط.",
 
@@ -456,7 +456,7 @@ const en: Dict = {
   inviteExpiredTitle: "This invite has expired",
   inviteExpiredBody: "Invite links work once and are valid for 7 days. Ask your team's admin to send a new invite.",
   ruleLength: "At least 8 characters",
-  ruleCases: "Upper and lower case letter (A-z)",
+  ruleCases: "Upper and lower case letter (A-Z and a-z)",
   ruleNumber: "At least one number",
   passwordTooWeak: "The password doesn't meet the rules.",
 

@@ -183,7 +183,7 @@ export function BulkEdit({
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-[14px] font-semibold text-[#27500A]">{t.selected(t.unitTypes(chosen.length), t.apartments(units))}</span>
               <span className="flex-1" />
-              <button type="button" onClick={() => update({ typeIds: types.map((x) => x.id) })} className="cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#3B6D11]">
+              <button type="button" onClick={() => update({ typeIds: types.map((x) => x.id) })} className="cursor-pointer border-0 bg-transparent text-[13px] font-semibold text-[#3B6D11] max-[899px]:min-h-11">
                 {t.selectAll}
               </button>
               <button

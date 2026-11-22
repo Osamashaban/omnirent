@@ -364,7 +364,7 @@ export function PlatformsTab({ ctx }: { ctx: Ctx }) {
                 <span>
                   <Pill st={c.st} label={t.st[c.st]} />
                 </span>
-                <span className={`text-[13px] ${c.countMuted ? "text-[#6B7280]" : "font-semibold text-[#111827]"}`}>{c.st === "off" ? "—" : c.count}</span>
+                <span className={`text-[13px] ${c.countMuted ? "text-[#6B7280]" : "font-semibold text-[#111827]"}`}>{c.st === "off" ? "-" : c.count}</span>
                 <span className="flex justify-end">
                   <button
                     type="button"
