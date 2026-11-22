@@ -10,7 +10,7 @@ type Props = { searchParams: Promise<{ email?: string }> };
 // Same screen whether or not the email has an account.
 export default async function BrokerResetSentPage({ searchParams }: Props) {
   const [{ lang, b }, { email }] = await Promise.all([getBrokerDict(), searchParams]);
-  const shown = typeof email === "string" && email ? email.slice(0, 254) : "—";
+  const shown = typeof email === "string" && email ? email.slice(0, 254) : "-";
   return (
     <BrokerAuthShell lang={lang} b={b} back={`/broker/forgot-password/sent?email=${encodeURIComponent(shown)}`}>
       <BrokerStatusIcon tone="green">

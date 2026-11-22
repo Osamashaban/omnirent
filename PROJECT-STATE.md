@@ -226,3 +226,38 @@ Samer's approval and certification with Channex (production key).
   made (Booking.com and Google waiting, those three connected).
 - Google, currency and help requests are emailed to `CHANNELS_TEAM_EMAIL`; there
   is no Ops screen for them yet.
+
+## Bookings and Guests (broker Bookings and Guests pages)
+
+Added 2026-11-22 (branch `bookings-guests`, stacked on `channel-connections`),
+from Claude Design version 87 (version id 1795265087-76d5, "Reservations and
+Guests, plus QA fixes"). Waiting on Ossama's "deploy" after the brief.
+
+- One list for platform and direct bookings (tabs, search, filters, CSV
+  export), Airbnb requests and inquiries (accept, pre-approve, decline with a
+  reason), a booking panel (payments, confirm, move between identical
+  apartments, cancel direct bookings, Booking.com no-show / invalid card
+  reports, team note, activity log) and guest profiles (VIP, Don't rent, notes,
+  ID document, merge duplicates by mobile, delete personal data).
+- Direct bookings are sent to Channex as CRS bookings so the dates close on
+  every platform; Channex's own revision for that booking is ignored when it
+  comes back (`ownDirectRevision`). Recording a payment on a pending direct
+  booking confirms it.
+- Airbnb requests come from Channex's live feed, pulled when the page opens and
+  when the webhook says a request arrived. Replying with a message stays on
+  Airbnb in this version.
+- Guest profiles are per broker company and matched by mobile, then email.
+  Deleting a guest's data blanks the profile but keeps the bookings (with
+  "Deleted guest") so payouts and history still add up.
+- Calendar bookings (design App_Calendar v1.1, added 2026-11-22 on Ossama's
+  request): bars per apartment coloured by stay (staying now / upcoming /
+  checked out) with the platform badge, a platform filter, chips in the month
+  and phone views, booking details with the apartment picker, drag a bar to
+  another identical apartment (same rule as Bookings: upcoming stays only),
+  and "In Calendar" opens the booking. Booked nights lower "left", and linked
+  calendars (whole apartment and its rooms) close each other: shown as
+  "Closed by a linked booking" and sent to the channels as availability 0
+  (on calendar saves, publishes, direct bookings, and after a platform
+  booking arrives, changes or is cancelled on a property rented both ways).
+  The platform filter lists the connected platforms.
+- Not built yet: guest messaging, reviews, card details.

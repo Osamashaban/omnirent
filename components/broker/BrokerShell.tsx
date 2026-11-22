@@ -1,5 +1,6 @@
 // The signed-in broker app frame (app.getomnirent.com): sidebar on desktop
-// with the company card, the Properties, Calendar and Channels links and the user card;
+// with the company card, the Properties, Calendar, Channels, Bookings and
+// Guests links and the user card;
 // under 900px a top bar instead. As in Ops, the language button sits above
 // the user card.
 
@@ -13,9 +14,10 @@ import { MobileMenu } from "@/components/ops/MobileMenu";
 import { LogOut, X } from "@/components/ops/icons";
 import { Initials } from "@/components/ops/ui";
 import { Building, CalendarIcon, Plug } from "./property-icons";
+import { CalendarCheck, Users } from "./booking-icons";
 import { BrokerLangButton } from "./BrokerLangButton";
 
-export type BrokerSection = "properties" | "calendar" | "channels";
+export type BrokerSection = "properties" | "calendar" | "channels" | "bookings" | "guests";
 
 // The frame is the layout of every Properties and Calendar page, so the
 // sidebar stays put while pages load. Each page draws its own phone top bar:
@@ -158,6 +160,14 @@ function SideNav({ p, section }: { p: PropertyDict; section: BrokerSection }) {
       <Link href="/broker/channels" aria-current={section === "channels" ? "page" : undefined} className={navLinkClass}>
         <Plug />
         {p.channels}
+      </Link>
+      <Link href="/broker/bookings" aria-current={section === "bookings" ? "page" : undefined} className={navLinkClass}>
+        <CalendarCheck />
+        {p.bookings}
+      </Link>
+      <Link href="/broker/guests" aria-current={section === "guests" ? "page" : undefined} className={navLinkClass}>
+        <Users />
+        {p.guests}
       </Link>
     </nav>
   );

@@ -38,6 +38,7 @@ import { sendEmail } from "./email";
 import { button, esc, h1, layout, p as para } from "./broker-emails";
 import { calendarToday } from "./calendar-data";
 import type { Lang } from "./i18n";
+import { afterRevision, ownDirectRevision } from "./booking-data";
 
 // ---------------------------------------------------------------------------
 // Addresses
@@ -936,6 +937,8 @@ export async function disconnectPlatform(brokerId: string, platform: string): Pr
 // Bookings and platform events (webhook, and the feed as a backup)
 
 export async function ingestRevision(rev: Revision): Promise<void> {
+  // A direct booking recorded here and echoed back by the partner: link it, don't copy it.
+  if (await ownDirectRevision(rev)) return;
   const prop = await prisma.property.findFirst({ where: { channexId: rev.propertyId }, select: { id: true, brokerId: true, unitTypes: { select: { id: true, channexId: true, name: true } } } });
   if (!prop) return;
   const room = rev.rooms[0];
@@ -954,7 +957,8 @@ export async function ingestRevision(rev: Revision): Promise<void> {
     rooms: Math.max(1, rev.rooms.filter((r) => !r.roomTypeId || r.roomTypeId === room?.roomTypeId).length),
   };
   const before = await prisma.channelBooking.findUnique({ where: { channexBookingId: rev.bookingId } });
-  await prisma.channelBooking.upsert({ where: { channexBookingId: rev.bookingId }, create: { channexBookingId: rev.bookingId, ...data }, update: data });
+  const saved = await prisma.channelBooking.upsert({ where: { channexBookingId: rev.bookingId }, create: { channexBookingId: rev.bookingId, ...data }, update: data, select: { id: true } });
+  await afterRevision(saved.id, rev, before);
   if (!unit && rev.status !== "cancelled" && !before) {
     await prisma.channelIssue.create({
       data: { brokerId: prop.brokerId, platform, kind: "unlinked", data: { code: data.code, room: "", from: rev.arrival, to: rev.departure, bookingId: rev.bookingId } },

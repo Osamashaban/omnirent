@@ -77,7 +77,7 @@ function LangLink({ lang, b, back }: { lang: Lang; b: BrokerDict; back: string }
       <button
         type="submit"
         lang={lang === "ar" ? "en" : "ar"}
-        className="cursor-pointer border-0 bg-transparent p-0 text-[14px] font-semibold text-[#3B6D11] underline hover:text-[#27500A] min-[900px]:text-[13px]"
+        className="inline-flex cursor-pointer items-center border-0 bg-transparent p-0 text-[14px] font-semibold text-[#3B6D11] underline hover:text-[#27500A] max-[899px]:min-h-11 min-[900px]:text-[13px]"
       >
         {b.otherLang}
       </button>
@@ -149,4 +149,4 @@ export const brokerSecondaryButtonClass =
   "inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#D1D5DB] bg-white px-[18px] text-[15px] font-semibold text-[#111827] no-underline hover:bg-[#F9FAFB]";
 
 export const brokerLinkButtonClass =
-  "cursor-pointer self-start border-0 bg-transparent p-0 text-[14px] font-semibold text-[#3B6D11] no-underline hover:text-[#27500A]";
+  "inline-flex cursor-pointer items-center self-start border-0 bg-transparent p-0 text-[14px] font-semibold text-[#3B6D11] no-underline hover:text-[#27500A] max-[899px]:min-h-11";

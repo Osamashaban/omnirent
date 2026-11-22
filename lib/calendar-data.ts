@@ -7,12 +7,17 @@ import { prisma } from "./db";
 import { OPS_TIME_ZONE } from "./dates";
 import { channexConfigured } from "./channex";
 import { bookedNights } from "./channel-rules";
+import { initials, platformById } from "./channel-catalog";
+import { DIRECT, canMove, stageOf } from "./booking-rules";
+import { BOOKING_DICTS } from "./booking-i18n";
 import type { Lang } from "./i18n";
 import {
   BLOCK_REASONS,
+  addDays,
   buildAri,
   dateRange,
   isEmptyOverride,
+  linkedClosed,
   nightOf,
   overrideKey,
   todayIn,
@@ -38,11 +43,39 @@ export type CalTypeView = CalType & {
   derived: { adjustment: string; value: number } | null;
 };
 
+// A booking as the Calendar draws it: a bar on its apartment's row.
+export type CalBooking = {
+  id: string;
+  unitTypeId: string;
+  apt: number;
+  arrival: string;
+  departure: string;
+  guest: string;
+  code: string;
+  platform: string;
+  platformName: string;
+  color: string;
+  ini: string;
+  guests: number;
+  total: number;
+  currency: string;
+  rooms: number;
+  // Only stays that haven't started can change apartment (Bookings rule).
+  movable: boolean;
+};
+
 export type CalendarData = {
   today: string;
   properties: CalProperty[];
   types: CalTypeView[];
   overrides: Record<string, Override>;
+  // Units already taken by bookings (platform and direct, not cancelled),
+  // keyed like overrides ("unitTypeId|date"), from today on.
+  booked: Record<string, number>;
+  bookings: CalBooking[];
+  // The platform filter: the broker's connected platforms, plus any other
+  // platform (or Direct) that has a booking here.
+  platforms: { id: string; name: string }[];
   // Saves that didn't reach the channels yet.
   failed: number;
 };
@@ -139,6 +172,56 @@ export async function loadCalendar(brokerId: string, lang: Lang): Promise<Calend
     : [];
   const overrides: Record<string, Override> = {};
   for (const d of days) overrides[overrideKey(d.unitTypeId, d.date.toISOString().slice(0, 10))] = rowToOverride(d);
+  // Bookings that aren't cancelled and end this month or later (the month
+  // view starts on the 1st; the grid starts today).
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const rows = types.length
+    ? await prisma.channelBooking.findMany({
+        where: { brokerId, unitTypeId: { in: types.map((t) => t.id) }, status: { not: "cancelled" }, departure: { gt: new Date(monthStart) } },
+        orderBy: { arrival: "asc" },
+        include: { guestProfile: { select: { name: true, deletedAt: true } } },
+      })
+    : [];
+  const countOf = new Map(types.map((t) => [t.id, t.count]));
+  const bt = BOOKING_DICTS[lang];
+  const directName = bt.direct;
+  const bookings: CalBooking[] = rows.map((r) => {
+    const arrival = r.arrival.toISOString().slice(0, 10);
+    const departure = r.departure.toISOString().slice(0, 10);
+    const p = r.platform === DIRECT ? null : platformById(r.platform);
+    const platformName = r.platform === DIRECT ? directName : (p?.name ?? "-");
+    const count = countOf.get(r.unitTypeId!) ?? 1;
+    return {
+      id: r.id,
+      unitTypeId: r.unitTypeId!,
+      apt: Math.min(Math.max(1, r.apt), count),
+      arrival,
+      departure,
+      guest: r.guestProfile?.deletedAt ? bt.deletedGuest : r.guestProfile?.name || r.guest || "-",
+      code: r.code,
+      platform: r.platform,
+      platformName,
+      color: r.platform === DIRECT ? "#639922" : (p?.color ?? "#6B7280"),
+      ini: r.platform === DIRECT ? directName.charAt(0) : p ? initials(p.name) : "?",
+      guests: r.adults + r.children,
+      total: Number(r.total),
+      currency: r.currency,
+      rooms: r.rooms,
+      movable: canMove({ cancelled: false, stage: stageOf({ arrival, departure, cancelled: false }, today) }, count),
+    };
+  });
+  const [accounts, connections] = await Promise.all([
+    prisma.channelAccount.findMany({ where: { brokerId, state: { in: ["CONNECTED", "ATTENTION"] } }, select: { platform: true } }),
+    prisma.channelConnection.findMany({ where: { brokerId, state: { in: ["CONNECTED", "ATTENTION"] } }, select: { platform: true } }),
+  ]);
+  const platformNames = new Map<string, string>();
+  for (const { platform } of [...accounts, ...connections]) {
+    const p = platformById(platform);
+    if (p) platformNames.set(p.id, p.name);
+  }
+  for (const b of bookings) if (!platformNames.has(b.platform) && b.platformName !== "-") platformNames.set(b.platform, b.platformName);
+  const platforms = [...platformNames].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  const booked = Object.fromEntries(bookedNights(bookings.map((b) => ({ unitTypeId: b.unitTypeId, arrival: b.arrival, departure: b.departure, status: "new", rooms: b.rooms }))));
   return {
     today,
     properties: props
@@ -153,6 +236,9 @@ export async function loadCalendar(brokerId: string, lang: Lang): Promise<Calend
       })),
     types,
     overrides,
+    booked,
+    bookings,
+    platforms,
     failed,
   };
 }
@@ -297,11 +383,20 @@ async function ariFor(tx: Tx, nights: (Target & { override: Override | null })[]
   const out: Record<string, AriValues> = {};
   for (const [propertyId, ids] of idsByProperty) {
     const list = nights.filter((n) => n.type.propertyId === propertyId);
-    const booked = await bookedMap(tx, list);
+    // Linked calendars: the sibling unit types' bookings close these nights too.
+    const siblings = await linkedTypes(tx, list.map((n) => n.type));
+    const booked = await bookedMap(tx, list.concat(list.flatMap((n) => siblings.map((type) => ({ ...n, type })))));
+    const all = [...new Map([...list.map((n) => n.type), ...siblings].map((t) => [t.id, t])).values()];
     const mine = list.map((n) => ({
       type: n.type,
       date: n.date,
-      night: nightOf(n.type, n.date, n.override ?? undefined, booked.get(overrideKey(n.type.id, n.date)) ?? 0),
+      night: nightOf(
+        n.type,
+        n.date,
+        n.override ?? undefined,
+        booked.get(overrideKey(n.type.id, n.date)) ?? 0,
+        linkedClosed(n.type, all, (id) => booked.get(overrideKey(id, n.date)) ?? 0),
+      ),
     }));
     const values = buildAri(ids, mine);
     if (values.restrictions.length || values.availability.length) out[propertyId] = values;
@@ -353,10 +448,28 @@ export async function calendarAri(propertyId: string, from: string, to: string):
     dateRange(from, to).map((date) => ({
       type,
       date,
-      night: nightOf(type, date, stored.get(overrideKey(type.id, date)), booked.get(overrideKey(type.id, date)) ?? 0),
+      night: nightOf(
+        type,
+        date,
+        stored.get(overrideKey(type.id, date)),
+        booked.get(overrideKey(type.id, date)) ?? 0,
+        linkedClosed(type, types, (id) => booked.get(overrideKey(id, date)) ?? 0),
+      ),
     })),
   );
   return buildAri(ids, nights);
+}
+
+// The other unit types of the same properties that are linked (whole
+// apartment and its rooms), whose bookings close each other's nights.
+async function linkedTypes(tx: Tx | typeof prisma, list: { id: string; propertyId: string; link: CalType["link"] }[]): Promise<CalType[]> {
+  const props = [...new Set(list.filter((t) => t.link).map((t) => t.propertyId))];
+  if (!props.length) return [];
+  const have = new Set(list.map((t) => t.id));
+  const rows = await tx.unitType.findMany({ where: { propertyId: { in: props } }, include: typeInclude });
+  return rows
+    .map(toCalType)
+    .filter((t): t is CalTypeView => t !== null && !!t.link && !have.has(t.id));
 }
 
 // Units already booked on the platforms, per unit type and night, so the
@@ -377,4 +490,17 @@ async function bookedMap(tx: Tx | typeof prisma, nights: { type: { id: string };
   return bookedNights(
     rows.map((r) => ({ ...r, arrival: r.arrival.toISOString().slice(0, 10), departure: r.departure.toISOString().slice(0, 10) })),
   );
+}
+
+// The calendar price of each night of one unit type, from `from` up to (not
+// including) `to`: the night's change, or the standard rate. Direct bookings
+// start from these (Bookings page).
+export async function nightPrices(unitTypeId: string, from: string, to: string): Promise<{ d: string; p: number }[]> {
+  const row = await prisma.unitType.findUnique({ where: { id: unitTypeId }, include: typeInclude });
+  const type = row ? toCalType(row) : null;
+  if (!type || to <= from) return [];
+  const last = addDays(to, -1);
+  const days = await prisma.calendarDay.findMany({ where: { unitTypeId, date: { gte: new Date(from), lte: new Date(last) } } });
+  const stored = new Map(days.map((d) => [d.date.toISOString().slice(0, 10), rowToOverride(d)]));
+  return dateRange(from, last).map((d) => ({ d, p: nightOf(type, d, stored.get(d)).price }));
 }
