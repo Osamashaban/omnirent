@@ -400,3 +400,25 @@ test("bookings are drawn on the calendar and moved through the checked action", 
   const detail = readFileSync(new URL("../app/broker/bookings/BookingDetail.tsx", import.meta.url), "utf8");
   assert.match(detail, /\/broker\/calendar\?booking=/);
 });
+
+// Linked calendars reach the channels: a booked whole apartment sends 0 for
+// its rooms (and the reverse), on calendar saves, publishes and after a
+// platform booking arrives or changes.
+test("linked closures are sent to the channels", async () => {
+  const { buildAri } = await import("../lib/calendar-rules.ts");
+  const room = { ...chalet, id: "r1", count: 1, link: "room" };
+  const ids = { propertyId: "P", roomTypes: { r1: "RT" }, ratePlans: { r1: "RP" } };
+  const closed = buildAri(ids, [{ type: room, date: "2026-11-24", night: nightOf(room, "2026-11-24", undefined, 0, true) }]);
+  assert.equal(closed.availability[0].availability, 0);
+  const open = buildAri(ids, [{ type: room, date: "2026-11-24", night: nightOf(room, "2026-11-24", undefined, 0, false) }]);
+  assert.equal(open.availability[0].availability, 1);
+
+  const data = readFileSync(new URL("../lib/calendar-data.ts", import.meta.url), "utf8");
+  const ari = data.slice(data.indexOf("async function ariFor"), data.indexOf("\n}\n", data.indexOf("async function ariFor")));
+  assert.match(ari, /linkedClosed\(/, "calendar saves send linked closures");
+  const pub = data.slice(data.indexOf("export async function calendarAri"), data.indexOf("\n}\n", data.indexOf("export async function calendarAri")));
+  assert.match(pub, /linkedClosed\(/, "publishes and booking pushes send linked closures");
+  const bk = readFileSync(new URL("../lib/booking-data.ts", import.meta.url), "utf8");
+  const after = bk.slice(bk.indexOf("export async function afterRevision"), bk.indexOf("\n}\n", bk.indexOf("export async function afterRevision")));
+  assert.match(after, /rentMode: "BOTH"[\s\S]*pushNights\(b\.propertyId/, "a platform booking on a linked property pushes the nights");
+});

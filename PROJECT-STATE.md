@@ -255,8 +255,9 @@ Guests, plus QA fixes"). Waiting on Ossama's "deploy" after the brief.
   and phone views, booking details with the apartment picker, drag a bar to
   another identical apartment (same rule as Bookings: upcoming stays only),
   and "In Calendar" opens the booking. Booked nights lower "left", and linked
-  calendars (whole apartment and its rooms) show "Closed by a linked
-  booking" on screen. Gap: the availability sent to the channels does not
-  yet close linked rooms or the whole apartment; that still relies on the
-  channels' own settings.
+  calendars (whole apartment and its rooms) close each other: shown as
+  "Closed by a linked booking" and sent to the channels as availability 0
+  (on calendar saves, publishes, direct bookings, and after a platform
+  booking arrives, changes or is cancelled on a property rented both ways).
+  The platform filter lists the connected platforms.
 - Not built yet: guest messaging, reviews, card details.

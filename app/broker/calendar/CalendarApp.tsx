@@ -114,11 +114,6 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
   const barDragRef = useRef(barDrag);
   barDragRef.current = barDrag;
   const bookingById = useMemo(() => new Map(data.bookings.map((b) => [b.id, b])), [data.bookings]);
-  const platforms = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const b of data.bookings) if (!seen.has(b.platform)) seen.set(b.platform, b.platformName);
-    return [...seen].sort((a, b) => a[1].localeCompare(b[1]));
-  }, [data.bookings]);
   const dim = (b: CalBooking) => chf !== "all" && chf !== b.platform;
   const bookingsOn = useCallback(
     (typeId: string, date: string) => data.bookings.filter((b) => b.unitTypeId === typeId && b.arrival <= date && date < b.departure),
@@ -534,7 +529,7 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
           className="h-10 cursor-pointer rounded-lg border border-[#D1D5DB] bg-white px-3 text-[14px] font-medium text-[#111827]"
         >
           <option value="all">{t.allPlatforms}</option>
-          {platforms.map(([id, name]) => (
+          {data.platforms.map(({ id, name }) => (
             <option key={id} value={id}>
               {name}
             </option>

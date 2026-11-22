@@ -17,6 +17,7 @@ import {
   buildAri,
   dateRange,
   isEmptyOverride,
+  linkedClosed,
   nightOf,
   overrideKey,
   todayIn,
@@ -72,6 +73,9 @@ export type CalendarData = {
   // keyed like overrides ("unitTypeId|date"), from today on.
   booked: Record<string, number>;
   bookings: CalBooking[];
+  // The platform filter: the broker's connected platforms, plus any other
+  // platform (or Direct) that has a booking here.
+  platforms: { id: string; name: string }[];
   // Saves that didn't reach the channels yet.
   failed: number;
 };
@@ -206,6 +210,17 @@ export async function loadCalendar(brokerId: string, lang: Lang): Promise<Calend
       movable: canMove({ cancelled: false, stage: stageOf({ arrival, departure, cancelled: false }, today) }, count),
     };
   });
+  const [accounts, connections] = await Promise.all([
+    prisma.channelAccount.findMany({ where: { brokerId, state: { in: ["CONNECTED", "ATTENTION"] } }, select: { platform: true } }),
+    prisma.channelConnection.findMany({ where: { brokerId, state: { in: ["CONNECTED", "ATTENTION"] } }, select: { platform: true } }),
+  ]);
+  const platformNames = new Map<string, string>();
+  for (const { platform } of [...accounts, ...connections]) {
+    const p = platformById(platform);
+    if (p) platformNames.set(p.id, p.name);
+  }
+  for (const b of bookings) if (!platformNames.has(b.platform) && b.platformName !== "-") platformNames.set(b.platform, b.platformName);
+  const platforms = [...platformNames].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
   const booked = Object.fromEntries(bookedNights(bookings.map((b) => ({ unitTypeId: b.unitTypeId, arrival: b.arrival, departure: b.departure, status: "new", rooms: b.rooms }))));
   return {
     today,
@@ -223,6 +238,7 @@ export async function loadCalendar(brokerId: string, lang: Lang): Promise<Calend
     overrides,
     booked,
     bookings,
+    platforms,
     failed,
   };
 }
@@ -367,11 +383,20 @@ async function ariFor(tx: Tx, nights: (Target & { override: Override | null })[]
   const out: Record<string, AriValues> = {};
   for (const [propertyId, ids] of idsByProperty) {
     const list = nights.filter((n) => n.type.propertyId === propertyId);
-    const booked = await bookedMap(tx, list);
+    // Linked calendars: the sibling unit types' bookings close these nights too.
+    const siblings = await linkedTypes(tx, list.map((n) => n.type));
+    const booked = await bookedMap(tx, list.concat(list.flatMap((n) => siblings.map((type) => ({ ...n, type })))));
+    const all = [...new Map([...list.map((n) => n.type), ...siblings].map((t) => [t.id, t])).values()];
     const mine = list.map((n) => ({
       type: n.type,
       date: n.date,
-      night: nightOf(n.type, n.date, n.override ?? undefined, booked.get(overrideKey(n.type.id, n.date)) ?? 0),
+      night: nightOf(
+        n.type,
+        n.date,
+        n.override ?? undefined,
+        booked.get(overrideKey(n.type.id, n.date)) ?? 0,
+        linkedClosed(n.type, all, (id) => booked.get(overrideKey(id, n.date)) ?? 0),
+      ),
     }));
     const values = buildAri(ids, mine);
     if (values.restrictions.length || values.availability.length) out[propertyId] = values;
@@ -423,10 +448,28 @@ export async function calendarAri(propertyId: string, from: string, to: string):
     dateRange(from, to).map((date) => ({
       type,
       date,
-      night: nightOf(type, date, stored.get(overrideKey(type.id, date)), booked.get(overrideKey(type.id, date)) ?? 0),
+      night: nightOf(
+        type,
+        date,
+        stored.get(overrideKey(type.id, date)),
+        booked.get(overrideKey(type.id, date)) ?? 0,
+        linkedClosed(type, types, (id) => booked.get(overrideKey(id, date)) ?? 0),
+      ),
     })),
   );
   return buildAri(ids, nights);
+}
+
+// The other unit types of the same properties that are linked (whole
+// apartment and its rooms), whose bookings close each other's nights.
+async function linkedTypes(tx: Tx | typeof prisma, list: { id: string; propertyId: string; link: CalType["link"] }[]): Promise<CalType[]> {
+  const props = [...new Set(list.filter((t) => t.link).map((t) => t.propertyId))];
+  if (!props.length) return [];
+  const have = new Set(list.map((t) => t.id));
+  const rows = await tx.unitType.findMany({ where: { propertyId: { in: props } }, include: typeInclude });
+  return rows
+    .map(toCalType)
+    .filter((t): t is CalTypeView => t !== null && !!t.link && !have.has(t.id));
 }
 
 // Units already booked on the platforms, per unit type and night, so the
