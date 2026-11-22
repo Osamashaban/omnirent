@@ -58,7 +58,14 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
     (n: number, type?: CalTypeView) => formatMoney(n, (type && propById.get(type.propertyId)?.currency) || "EGP", lang),
     [propById, lang],
   );
-  const night = useCallback((type: CalTypeView, date: string) => nightOf(type, date, overrides.get(overrideKey(type.id, date))), [overrides]);
+  const booked = data.booked;
+  const night = useCallback(
+    (type: CalTypeView, date: string) => {
+      const key = overrideKey(type.id, date);
+      return nightOf(type, date, overrides.get(key), booked[key] ?? 0);
+    },
+    [overrides, booked],
+  );
 
   const [view, setView] = useState<"all" | "month">("all");
   const [phoneView, setPhoneView] = useState<"days" | "month">("days");
