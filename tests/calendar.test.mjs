@@ -321,3 +321,29 @@ test("both languages have the same texts", () => {
   assert.deepEqual(keys(CALENDAR_DICTS.en), keys(CALENDAR_DICTS.ar));
   assert.deepEqual(keys(CALENDAR_DICTS.en.errors), keys(CALENDAR_DICTS.ar.errors));
 });
+
+// Bookings show on the Calendar: the nights a booking takes come out keyed
+// exactly like the night changes, so the grid can look them up, and they
+// lower what's left. The Calendar page must load them and pass them on.
+test("bookings take nights on the calendar grid", async () => {
+  const { bookedNights } = await import("../lib/channel-rules.ts");
+  const booked = bookedNights([
+    { unitTypeId: "t1", arrival: "2026-11-24", departure: "2026-11-26", status: "new", rooms: 1 },
+    { unitTypeId: "t1", arrival: "2026-11-25", departure: "2026-11-27", status: "modified", rooms: 1 },
+    { unitTypeId: "t1", arrival: "2026-11-24", departure: "2026-11-30", status: "cancelled", rooms: 1 },
+  ]);
+  const at = (d) => nightOf(chalet, d, undefined, booked.get(overrideKey("t1", d)) ?? 0);
+  assert.equal(at("2026-11-23").left, 4);
+  assert.equal(at("2026-11-24").booked, 1);
+  assert.equal(at("2026-11-25").left, 2);
+  assert.equal(at("2026-11-26").left, 3);
+  assert.equal(at("2026-11-27").left, 4); // departure day is free
+
+  const { readFileSync } = await import("node:fs");
+  const data = readFileSync(new URL("../lib/calendar-data.ts", import.meta.url), "utf8");
+  const load = data.slice(data.indexOf("export async function loadCalendar"), data.indexOf("\n}\n", data.indexOf("export async function loadCalendar")));
+  assert.match(load, /channelBooking\.findMany/, "the Calendar page must load bookings");
+  assert.match(load, /\bbooked,/, "the Calendar page must send the booked nights to the screen");
+  const app = readFileSync(new URL("../app/broker/calendar/CalendarApp.tsx", import.meta.url), "utf8");
+  assert.match(app, /nightOf\(type, date, overrides\.get\(key\), booked\[key\] \?\? 0\)/, "the grid must count booked nights");
+});

@@ -44,6 +44,9 @@ export type CalendarData = {
   properties: CalProperty[];
   types: CalTypeView[];
   overrides: Record<string, Override>;
+  // Units already taken by bookings (platform and direct, not cancelled),
+  // keyed like overrides ("unitTypeId|date"), from today on.
+  booked: Record<string, number>;
   // Saves that didn't reach the channels yet.
   failed: number;
 };
@@ -140,6 +143,15 @@ export async function loadCalendar(brokerId: string, lang: Lang): Promise<Calend
     : [];
   const overrides: Record<string, Override> = {};
   for (const d of days) overrides[overrideKey(d.unitTypeId, d.date.toISOString().slice(0, 10))] = rowToOverride(d);
+  const bookings = types.length
+    ? await prisma.channelBooking.findMany({
+        where: { brokerId, unitTypeId: { in: types.map((t) => t.id) }, status: { not: "cancelled" }, departure: { gt: new Date(today) } },
+        select: { unitTypeId: true, arrival: true, departure: true, status: true, rooms: true },
+      })
+    : [];
+  const booked = Object.fromEntries(
+    bookedNights(bookings.map((r) => ({ ...r, arrival: r.arrival.toISOString().slice(0, 10), departure: r.departure.toISOString().slice(0, 10) }))),
+  );
   return {
     today,
     properties: props
@@ -154,6 +166,7 @@ export async function loadCalendar(brokerId: string, lang: Lang): Promise<Calend
       })),
     types,
     overrides,
+    booked,
     failed,
   };
 }
