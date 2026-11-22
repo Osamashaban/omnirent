@@ -481,3 +481,50 @@ export function readSpec(raw: unknown): EditSpec | null {
     days: r.days as boolean[],
   };
 }
+
+// ---------------------------------------------------------------------------
+// Bookings on the grid
+// ---------------------------------------------------------------------------
+
+// A booking bar's colour shows where the stay is: staying now, upcoming or
+// checked out (a fixed set; the platform is the small badge).
+export type BarState = "now" | "next" | "done";
+export function barState(b: { arrival: string; departure: string }, today: string): BarState {
+  if (b.departure <= today) return "done";
+  return b.arrival <= today ? "now" : "next";
+}
+export const BAR_COLORS: Record<BarState, { bg: string; fg: string }> = {
+  now: { bg: "#1D4ED8", fg: "#FFFFFF" },
+  next: { bg: "#3B6D11", fg: "#FFFFFF" },
+  done: { bg: "#E5E7EB", fg: "#374151" },
+};
+
+// Where a booking's bar sits in a grid of `span` nights starting on `start`:
+// the first night's column, how many columns it covers, and whether it goes
+// on before or after the visible nights (those ends are drawn square).
+export function barSpan(
+  b: { arrival: string; departure: string },
+  start: string,
+  span: number,
+): { col: number; len: number; cutStart: boolean; cutEnd: boolean } | null {
+  const end = addDays(start, span); // first night after the grid
+  const a = b.arrival > start ? b.arrival : start;
+  const z = b.departure < end ? b.departure : end;
+  if (z <= a) return null;
+  const days = (x: string, y: string) => Math.round((Date.parse(`${y}T00:00:00Z`) - Date.parse(`${x}T00:00:00Z`)) / 86_400_000);
+  return { col: days(start, a), len: days(a, z), cutStart: b.arrival < start, cutEnd: b.departure > end };
+}
+
+// Linked calendars (a property rented whole and by the room): the whole
+// apartment closes when any room is booked, and every room closes when the
+// whole apartment is booked.
+export function linkedClosed(
+  type: Pick<CalType, "id" | "propertyId" | "link">,
+  types: Pick<CalType, "id" | "propertyId" | "link">[],
+  booked: (typeId: string) => number,
+): boolean {
+  if (!type.link) return false;
+  const others = types.filter((x) => x.propertyId === type.propertyId && x.id !== type.id && x.link);
+  if (type.link === "whole") return others.some((x) => x.link === "room" && booked(x.id) > 0);
+  return others.some((x) => x.link === "whole" && booked(x.id) > 0);
+}

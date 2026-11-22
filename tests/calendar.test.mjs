@@ -3,6 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   addDays,
@@ -345,5 +346,57 @@ test("bookings take nights on the calendar grid", async () => {
   assert.match(load, /channelBooking\.findMany/, "the Calendar page must load bookings");
   assert.match(load, /\bbooked,/, "the Calendar page must send the booked nights to the screen");
   const app = readFileSync(new URL("../app/broker/calendar/CalendarApp.tsx", import.meta.url), "utf8");
-  assert.match(app, /nightOf\(type, date, overrides\.get\(key\), booked\[key\] \?\? 0\)/, "the grid must count booked nights");
+  assert.match(app, /nightOf\(type, date, overrides\.get\(key\), booked\[key\] \?\? 0, linked\)/, "the grid must count booked and linked nights");
+});
+
+// Booking bars: colour by where the stay is, placed on the visible nights
+// only (cut ends drawn square), and linked calendars closing each other.
+test("booking bars: state, placement and linked calendars", async () => {
+  const { barState, barSpan, linkedClosed, BAR_COLORS } = await import("../lib/calendar-rules.ts");
+  const today = "2026-11-22";
+  assert.equal(barState({ arrival: "2026-11-20", departure: "2026-11-22" }, today), "done"); // left this morning
+  assert.equal(barState({ arrival: "2026-11-22", departure: "2026-11-25" }, today), "now");
+  assert.equal(barState({ arrival: "2026-11-23", departure: "2026-11-25" }, today), "next");
+  assert.equal(BAR_COLORS.now.bg, "#1D4ED8");
+  assert.equal(BAR_COLORS.next.bg, "#3B6D11");
+  assert.equal(BAR_COLORS.done.bg, "#E5E7EB");
+
+  // 14 nights from Nov 22: Nov 22 ... Dec 5.
+  assert.deepEqual(barSpan({ arrival: "2026-11-24", departure: "2026-11-27" }, today, 14), { col: 2, len: 3, cutStart: false, cutEnd: false });
+  assert.deepEqual(barSpan({ arrival: "2026-11-20", departure: "2026-11-24" }, today, 14), { col: 0, len: 2, cutStart: true, cutEnd: false });
+  assert.deepEqual(barSpan({ arrival: "2026-12-04", departure: "2026-12-10" }, today, 14), { col: 12, len: 2, cutStart: false, cutEnd: true });
+  assert.deepEqual(barSpan({ arrival: "2026-12-05", departure: "2026-12-06" }, today, 14), { col: 13, len: 1, cutStart: false, cutEnd: false });
+  assert.equal(barSpan({ arrival: "2026-12-06", departure: "2026-12-08" }, today, 14), null);
+  assert.equal(barSpan({ arrival: "2026-11-18", departure: "2026-11-22" }, today, 14), null); // checked out before the grid
+
+  const whole = { id: "w", propertyId: "p", link: "whole" };
+  const room1 = { id: "r1", propertyId: "p", link: "room" };
+  const room2 = { id: "r2", propertyId: "p", link: "room" };
+  const elsewhere = { id: "x", propertyId: "q", link: "whole" };
+  const plain = { id: "s", propertyId: "q", link: null };
+  const types = [whole, room1, room2, elsewhere, plain];
+  const by = (ids) => (id) => (ids.includes(id) ? 1 : 0);
+  assert.equal(linkedClosed(whole, types, by(["r1"])), true, "a booked room closes the whole apartment");
+  assert.equal(linkedClosed(room2, types, by(["r1"])), false, "a booked room doesn't close the other rooms");
+  assert.equal(linkedClosed(room1, types, by(["w"])), true, "a booked whole apartment closes its rooms");
+  assert.equal(linkedClosed(whole, types, by(["w"])), false);
+  assert.equal(linkedClosed(elsewhere, types, by(["r1"])), false, "only the same property");
+  assert.equal(linkedClosed(plain, types, by(["s", "w", "r1"])), false);
+});
+
+// The Calendar sends bookings to the screen, draws them, and moving one uses
+// the Bookings action (which checks the signed-in broker and the apartment).
+test("bookings are drawn on the calendar and moved through the checked action", () => {
+  const data = readFileSync(new URL("../lib/calendar-data.ts", import.meta.url), "utf8");
+  const load = data.slice(data.indexOf("export async function loadCalendar"), data.indexOf("\n}\n", data.indexOf("export async function loadCalendar")));
+  assert.match(load, /where: \{ brokerId, unitTypeId: \{ in: types\.map/, "only this broker's bookings on its own unit types");
+  assert.match(load, /status: \{ not: "cancelled" \}/, "cancelled bookings never show");
+  assert.match(load, /\bbookings,/);
+  const app = readFileSync(new URL("../app/broker/calendar/CalendarApp.tsx", import.meta.url), "utf8");
+  assert.match(app, /barSpan\(b, start, GRID_SPAN\)/, "bars sit on the grid's nights");
+  assert.match(app, /await moveToApartment\(id, apt\)/, "moves go through the Bookings action");
+  const page = readFileSync(new URL("../app/broker/calendar/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /focus=\{focus\}/, "In Calendar opens the booking");
+  const detail = readFileSync(new URL("../app/broker/bookings/BookingDetail.tsx", import.meta.url), "utf8");
+  assert.match(detail, /\/broker\/calendar\?booking=/);
 });
