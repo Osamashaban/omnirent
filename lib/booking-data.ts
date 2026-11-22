@@ -701,6 +701,15 @@ export async function afterRevision(bookingId: string, rev: Revision, before: { 
   if (datesMoved) await event(b.id, "changed", { p: pl, a: iso(before!.arrival), b: iso(before!.departure), c: rev.arrival, d: rev.departure });
   if (cancelledNow) await event(b.id, "cancelledGuest", { p: pl });
   void today;
+
+  // Linked calendars (whole apartment and its rooms): the platform only
+  // lowers the booked unit type, so close or reopen the linked ones here.
+  if (b.propertyId && (await prisma.property.count({ where: { id: b.propertyId, rentMode: "BOTH" } }))) {
+    await pushNights(b.propertyId, iso(b.arrival), iso(b.departure));
+    if (before && (iso(before.arrival) !== iso(b.arrival) || iso(before.departure) !== iso(b.departure))) {
+      await pushNights(b.propertyId, iso(before.arrival), iso(before.departure));
+    }
+  }
 }
 
 // A revision for a direct booking we recorded with the partner ourselves:
