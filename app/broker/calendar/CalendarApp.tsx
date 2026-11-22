@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { retryCalendar, saveCalendar, undoCalendar, type CalendarResult } from "@/app/actions/calendar";
-import type { CalendarData, CalTypeView } from "@/lib/calendar-data";
+import { moveToApartment } from "@/app/actions/bookings";
+import type { CalBooking, CalendarData, CalTypeView } from "@/lib/calendar-data";
 import { CALENDAR_DICTS, type CalendarDict } from "@/lib/calendar-i18n";
 import type { Lang } from "@/lib/i18n";
 import {
@@ -13,9 +14,11 @@ import {
   SAT_FIRST,
   UNDO_SECONDS,
   addDays,
+  barSpan,
   blankSpec,
   dateRange,
   lastEditable,
+  linkedClosed,
   monthCells,
   nightOf,
   overrideKey,
@@ -31,12 +34,31 @@ import { smallPrimaryButtonClass } from "@/components/ops/ui";
 import { CalendarToast, Corners, SyncPill, gridLook, monthLook, num, plus, type SyncState, type ToastState } from "./parts";
 import { EditPanel, PhoneEditSheet, type PanelForm } from "./EditPanel";
 import { BulkEdit } from "./BulkEdit";
+import { BookingChip, BookingDetails, PlatformBadge, barStyle, barTitle } from "./bookings";
 
 // A selection: a block of unit type rows (grid) or one unit type (month and
 // phone views), from one night to another.
 type Sel = { month: boolean; r0: number; r1: number; d0: string; d1: string };
 
 export type SelInfo = { from: string; to: string; types: CalTypeView[] };
+
+// Grid geometry (px): the name column and one night.
+const NAME_W = 232;
+const CELL_W = 62;
+const daysBetweenIso = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+
+function Grip() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="flex-none">
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="9" cy="5" r="1" />
+      <circle cx="9" cy="19" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="15" cy="5" r="1" />
+      <circle cx="15" cy="19" r="1" />
+    </svg>
+  );
+}
 
 const btn =
   "inline-flex h-10 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 text-[14px] font-semibold disabled:cursor-not-allowed disabled:opacity-50";
@@ -45,7 +67,7 @@ const secondary = `${btn} border border-[#D1D5DB] bg-white text-[#111827] hover:
 const square =
   "flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-[#D1D5DB] bg-white text-[#111827] disabled:cursor-not-allowed disabled:opacity-40";
 
-export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) {
+export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: CalendarData; focus?: string | null }) {
   const t = CALENDAR_DICTS[lang];
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -62,18 +84,46 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
   const night = useCallback(
     (type: CalTypeView, date: string) => {
       const key = overrideKey(type.id, date);
-      return nightOf(type, date, overrides.get(key), booked[key] ?? 0);
+      const linked = linkedClosed(type, types, (id) => booked[overrideKey(id, date)] ?? 0);
+      return nightOf(type, date, overrides.get(key), booked[key] ?? 0, linked);
     },
-    [overrides, booked],
+    [overrides, booked, types],
   );
 
+  // A booking to show first (the Bookings page's "In Calendar"): its week,
+  // its unit type and its details.
+  const focused = focus ? data.bookings.find((b) => b.id === focus) : undefined;
   const [view, setView] = useState<"all" | "month">("all");
   const [phoneView, setPhoneView] = useState<"days" | "month">("days");
-  const [start, setStart] = useState(today);
-  const [month, setMonth] = useState({ y: Number(today.slice(0, 4)), m: Number(today.slice(5, 7)) - 1 });
+  const [start, setStart] = useState(focused && focused.arrival > today ? focused.arrival : today);
+  const [month, setMonth] = useState(() => {
+    const d = focused && focused.arrival > today ? focused.arrival : today;
+    return { y: Number(d.slice(0, 4)), m: Number(d.slice(5, 7)) - 1 };
+  });
   const [q, setQ] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [mTypeId, setMTypeId] = useState(types[0]?.id ?? "");
+  const [mTypeId, setMTypeId] = useState(focused?.unitTypeId ?? types[0]?.id ?? "");
+
+  // Bookings: the platform filter, the open booking and dragging a bar onto
+  // another apartment of the same unit type.
+  const [chf, setChf] = useState("all");
+  const [openId, setOpenId] = useState<string | null>(focused?.id ?? null);
+  const [moveErr, setMoveErr] = useState("");
+  const [moving, setMoving] = useState(false);
+  const [barDrag, setBarDrag] = useState<{ id: string; typeId: string; apt: number; over: number } | null>(null);
+  const barDragRef = useRef(barDrag);
+  barDragRef.current = barDrag;
+  const bookingById = useMemo(() => new Map(data.bookings.map((b) => [b.id, b])), [data.bookings]);
+  const platforms = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const b of data.bookings) if (!seen.has(b.platform)) seen.set(b.platform, b.platformName);
+    return [...seen].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [data.bookings]);
+  const dim = (b: CalBooking) => chf !== "all" && chf !== b.platform;
+  const bookingsOn = useCallback(
+    (typeId: string, date: string) => data.bookings.filter((b) => b.unitTypeId === typeId && b.arrival <= date && date < b.departure),
+    [data.bookings],
+  );
   const mType = types.find((x) => x.id === mTypeId) ?? types[0];
 
   const [sel, setSel] = useState<Sel | null>(null);
@@ -180,6 +230,56 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
 
   const refresh = useCallback(() => startTransition(() => router.refresh()), [router]);
+
+  // Moving a booking to another of its unit type's identical apartments.
+  const moveTo = useCallback(
+    async (id: string, apt: number, fromDrawer: boolean) => {
+      const b = bookingById.get(id);
+      if (!b || b.apt === apt || moving) return;
+      const fail = (text: string) => (fromDrawer ? setMoveErr(text) : say(text, true));
+      if (!b.movable) return fail(t.cantMove);
+      const clash = data.bookings.some(
+        (x) => x.id !== b.id && x.unitTypeId === b.unitTypeId && x.apt === apt && x.arrival < b.departure && b.arrival < x.departure,
+      );
+      if (clash) return fail(t.aptBusyError(apt));
+      setMoving(true);
+      setMoveErr("");
+      const r = await moveToApartment(id, apt).catch(() => ({ ok: false as const, error: "failed" as const }));
+      setMoving(false);
+      if (!r.ok) {
+        if (r.error === "signedOut") return window.location.reload();
+        return fail(r.error === "noFree" ? t.aptBusyError(apt) : r.error === "notAllowed" ? t.cantMove : t.failed);
+      }
+      say(t.movedTo(b.guest, apt));
+      refresh();
+    },
+    [bookingById, data.bookings, moving, refresh, say, t],
+  );
+
+  // Letting go of a bar: on another apartment moves it, anywhere else (or a
+  // plain click) opens the booking.
+  const moveRef = useRef(moveTo);
+  moveRef.current = moveTo;
+  useEffect(() => {
+    const up = () => {
+      const g = barDragRef.current;
+      if (!g) return;
+      setBarDrag(null);
+      if (g.over === g.apt) {
+        setMoveErr("");
+        setOpenId(g.id);
+      } else void moveRef.current(g.id, g.over, false);
+    };
+    window.addEventListener("mouseup", up);
+    return () => window.removeEventListener("mouseup", up);
+  }, []);
+
+  useEffect(() => {
+    if (!openId) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpenId(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openId]);
 
   const send = useCallback(
     async (input: Parameters<typeof saveCalendar>[0]): Promise<CalendarResult> => {
@@ -306,6 +406,63 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
   const typeLabel = (x: CalTypeView) => `${propById.get(x.propertyId)?.name ?? ""} · ${x.name}`;
   const days = dateRange(start, gridEnd);
 
+  // The booking bars of one apartment row (or the unit type's own row when it
+  // has a single apartment).
+  const bars = (type: CalTypeView, apt: number) =>
+    data.bookings
+      .filter((b) => b.unitTypeId === type.id && b.apt === apt)
+      .map((b) => {
+        const at = barSpan(b, start, GRID_SPAN);
+        if (!at) return null;
+        const r0 = at.cutStart ? "0" : "6px";
+        const r1 = at.cutEnd ? "0" : "6px";
+        const dragging = barDrag?.id === b.id;
+        return (
+          <div
+            key={b.id}
+            role="button"
+            tabIndex={0}
+            title={barTitle(t, b, today)}
+            aria-label={barTitle(t, b, today)}
+            onMouseDown={(e) => {
+              if (e.button !== 0) return;
+              e.stopPropagation();
+              setSel(null);
+              setBarDrag({ id: b.id, typeId: type.id, apt: b.apt, over: b.apt });
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              e.preventDefault();
+              setMoveErr("");
+              setOpenId(b.id);
+            }}
+            className={`absolute top-[5px] bottom-[5px] z-[2] box-border flex items-center gap-1.5 overflow-hidden whitespace-nowrap px-2 text-[12px] font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.15)] outline-none focus-visible:shadow-[0_0_0_2px_#111827] ${
+              b.movable && type.count > 1 ? "cursor-grab" : "cursor-pointer"
+            }`}
+            style={{
+              insetInlineStart: NAME_W + at.col * CELL_W + 3,
+              width: at.len * CELL_W - 6,
+              borderStartStartRadius: r0,
+              borderEndStartRadius: r0,
+              borderStartEndRadius: r1,
+              borderEndEndRadius: r1,
+              ...barStyle(b, today, dim(b)),
+              ...(dragging ? { opacity: 0.55, outline: "2px dashed #111827" } : {}),
+            }}
+          >
+            {b.movable && type.count > 1 && (
+              <span aria-hidden="true" className="flex opacity-80">
+                <Grip />
+              </span>
+            )}
+            <PlatformBadge b={b} />
+            <span className="truncate">
+              <bdi>{b.guest}</bdi> · {t.nights(daysBetweenIso(b.arrival, b.departure))}
+            </span>
+          </div>
+        );
+      });
+
   return (
     <main className="flex w-full min-w-0 max-w-[1280px] flex-1 flex-col gap-3 px-4 py-4 min-[900px]:gap-4 min-[900px]:px-9 min-[900px]:py-6">
       {/* ------------------------------ Desktop ------------------------------ */}
@@ -314,8 +471,8 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
         <SyncPill sync={sync} t={t} onRetry={retry} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 max-[899px]:hidden">
-        <div role="radiogroup" aria-label={t.view} className="inline-flex rounded-[10px] bg-[#F3F4F6] p-[3px]">
+      <div className="flex flex-wrap items-center gap-3 max-[899px]:hidden min-[1280px]:flex-nowrap">
+        <div role="radiogroup" aria-label={t.view} className="inline-flex flex-none whitespace-nowrap rounded-[10px] bg-[#F3F4F6] p-[3px]">
           {(
             [
               ["all", t.viewAll],
@@ -347,7 +504,7 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
               setMTypeId(e.target.value);
               setSel(null);
             }}
-            className="h-10 cursor-pointer rounded-lg border border-[#D1D5DB] bg-white px-3 text-[14px] font-medium text-[#111827]"
+            className="h-10 min-w-0 max-w-[260px] flex-[0_1_auto] cursor-pointer rounded-lg border border-[#D1D5DB] bg-white px-3 text-[14px] font-medium text-[#111827]"
           >
             {types.map((x) => (
               <option key={x.id} value={x.id}>
@@ -356,7 +513,7 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
             ))}
           </select>
         ) : (
-          <label className="relative flex flex-[0_1_240px] items-center">
+          <label className="relative flex min-w-[150px] flex-[0_1_240px] items-center">
             <span className="pointer-events-none absolute start-3 flex text-[#6B7280]">
               <Search />
             </span>
@@ -370,6 +527,19 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
             />
           </label>
         )}
+        <select
+          aria-label={t.platform}
+          value={chf}
+          onChange={(e) => setChf(e.target.value)}
+          className="h-10 cursor-pointer rounded-lg border border-[#D1D5DB] bg-white px-3 text-[14px] font-medium text-[#111827]"
+        >
+          <option value="all">{t.allPlatforms}</option>
+          {platforms.map(([id, name]) => (
+            <option key={id} value={id}>
+              {name}
+            </option>
+          ))}
+        </select>
         <span className="flex-1" />
         <button type="button" onClick={() => setBulk(true)} className={primary}>
           <Sliders />
@@ -452,7 +622,7 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
                         const row = editRows.indexOf(type);
                         return (
                           <div key={type.id}>
-                            <div className="flex border-t border-[#E5E7EB]">
+                            <div className="relative flex border-t border-[#E5E7EB]">
                               <div className="sticky start-0 z-[3] flex h-[54px] flex-[0_0_232px] items-center bg-white px-3">
                                 <div className="flex min-w-0 flex-col">
                                   <span className="truncate text-[14px] font-semibold">
@@ -510,24 +680,48 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
                                   </div>
                                 );
                               })}
+                              {type.count === 1 && bars(type, 1)}
                             </div>
                             {type.count > 1 &&
-                              Array.from({ length: type.count }, (_, u) => (
-                                <div key={u} className="flex border-t border-[#E5E7EB]">
-                                  <div className="sticky start-0 z-[3] flex h-9 flex-[0_0_232px] items-center bg-white px-3">
-                                    <span className="truncate ps-3.5 text-[13px] font-medium text-[#4B5563]">{t.apartment(u + 1)}</span>
+                              Array.from({ length: type.count }, (_, u) => {
+                                const apt = u + 1;
+                                const target = !!barDrag && barDrag.typeId === type.id && barDrag.over === apt && barDrag.apt !== apt;
+                                const moving = target ? bookingById.get(barDrag!.id) : undefined;
+                                const bad =
+                                  !!moving &&
+                                  data.bookings.some(
+                                    (x) => x.id !== moving.id && x.unitTypeId === type.id && x.apt === apt && x.arrival < moving.departure && moving.arrival < x.departure,
+                                  );
+                                const tint = target ? (bad ? "#FEE2E2" : "#DCFCE7") : null;
+                                return (
+                                  <div
+                                    key={u}
+                                    className="relative flex border-t border-[#E5E7EB]"
+                                    onMouseEnter={() => {
+                                      const g = barDragRef.current;
+                                      if (g && g.typeId === type.id && g.over !== apt) setBarDrag({ ...g, over: apt });
+                                    }}
+                                  >
+                                    <div
+                                      className="sticky start-0 z-[3] flex h-9 flex-[0_0_232px] items-center px-3"
+                                      style={{ background: target ? (bad ? "#FEF2F2" : "#F0FDF4") : "#FFFFFF" }}
+                                    >
+                                      <span className="truncate ps-3.5 text-[13px] font-medium text-[#4B5563]">{t.apartment(apt)}</span>
+                                    </div>
+                                    {days.map((d) => {
+                                      const w = weekday(d);
+                                      return (
+                                        <div
+                                          key={d}
+                                          className="h-9 flex-[0_0_62px] border-s border-[#F3F4F6]"
+                                          style={{ background: tint ?? (w === 5 || w === 6 ? "#FAFAF9" : "#FFFFFF") }}
+                                        />
+                                      );
+                                    })}
+                                    {bars(type, apt)}
                                   </div>
-                                  {days.map((d) => {
-                                    const w = weekday(d);
-                                    return (
-                                      <div
-                                        key={d}
-                                        className={`h-9 flex-[0_0_62px] border-s border-[#F3F4F6] ${w === 5 || w === 6 ? "bg-[#FAFAF9]" : "bg-white"}`}
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              ))}
+                                );
+                              })}
                           </div>
                         );
                       })}
@@ -539,7 +733,7 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
               )}
             </div>
           </div>
-          <Hint className="max-[899px]:hidden">{t.gridHintEdit}</Hint>
+          <Hint className="max-[899px]:hidden">{t.gridHint}</Hint>
         </>
       ) : (
         <>
@@ -604,12 +798,37 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
                         <span className={`text-[12px] font-semibold ${look.subClass}`}>{look.sub}</span>
                       </>
                     )}
+                    {(() => {
+                      const here = bookingsOn(mType.id, d);
+                      const open = (id: string) => {
+                        setSel(null);
+                        setMoveErr("");
+                        setOpenId(id);
+                      };
+                      return (
+                        <>
+                          {here.slice(0, 2).map((b) => (
+                            <BookingChip key={b.id} t={t} b={b} today={today} dim={dim(b)} onOpen={() => open(b.id)} />
+                          ))}
+                          {here.length > 2 && (
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={() => open(here[2].id)}
+                              className="flex w-full cursor-pointer items-center rounded border-0 bg-[#6B7280] px-1 py-0.5 text-start text-[11px] font-semibold text-white"
+                            >
+                              +{here.length - 2}
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 );
               })}
             </div>
           </div>
-          <Hint className="max-[899px]:hidden">{t.monthHintEdit}</Hint>
+          <Hint className="max-[899px]:hidden">{t.monthHint}</Hint>
         </>
       )}
 
@@ -635,6 +854,12 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
         canNext={monthIndex(month) < monthIndex(lastMonth)}
         onMonth={moveMonth}
         night={night}
+        bookingsOn={bookingsOn}
+        dim={dim}
+        onBooking={(id) => {
+          setMoveErr("");
+          setOpenId(id);
+        }}
         money={money}
         currency={propById.get(mType.propertyId)?.currency ?? "EGP"}
         sync={sync}
@@ -708,6 +933,28 @@ export function CalendarApp({ lang, data }: { lang: Lang; data: CalendarData }) 
         />
       )}
 
+      {openId &&
+        (() => {
+          const b = bookingById.get(openId);
+          if (!b) return null;
+          const type = types.find((x) => x.id === b.unitTypeId);
+          return (
+            <BookingDetails
+              t={t}
+              lang={lang}
+              b={b}
+              type={type}
+              propertyName={(type && propById.get(type.propertyId)?.name) || ""}
+              today={today}
+              all={data.bookings}
+              busy={moving}
+              error={moveErr}
+              onMove={(apt) => void moveTo(b.id, apt, true)}
+              onClose={() => setOpenId(null)}
+            />
+          );
+        })()}
+
       {toast && <CalendarToast toast={toast} t={t} onUndo={undo} />}
     </main>
   );
@@ -731,23 +978,27 @@ function Hint({ children, className = "" }: { children: React.ReactNode; classNa
   );
 }
 
-const CHANNELS: [string, string][] = [
-  ["Airbnb", "#FF5A5F"],
-  ["Booking.com", "#003580"],
-  ["Agoda", "#5B2D90"],
-  ["Expedia", "#1E243A"],
-];
 
 function Legend({ t }: { t: CalendarDict }) {
   const swatch = "h-3 w-[18px] rounded-[3px]";
   return (
     <div className="flex flex-wrap items-center gap-x-[18px] gap-y-2 text-[12px] text-[#4B5563] max-[899px]:hidden">
-      {CHANNELS.map(([name, color]) => (
-        <span key={name} className="flex items-center gap-1.5">
-          <span className={swatch} style={{ background: color }} />
-          {name}
-        </span>
-      ))}
+      <span className="flex items-center gap-1.5">
+        <span className={`${swatch} bg-[#1D4ED8]`} />
+        {t.barStates.now}
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className={`${swatch} bg-[#3B6D11]`} />
+        {t.barStates.next}
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className={`${swatch} border border-[#D1D5DB] bg-[#E5E7EB]`} />
+        {t.barStates.done}
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="inline-flex h-4 min-w-4 items-center justify-center rounded bg-[#374151] text-[9px] font-bold text-white">B</span>
+        {t.platformLegend}
+      </span>
       <span className="flex items-center gap-1.5">
         <span className={`${swatch} border border-[#D1D5DB]`} style={{ background: "repeating-linear-gradient(135deg,#E5E7EB 0 4px,#F9FAFB 4px 8px)" }} />
         {t.blockedLegend}
@@ -795,6 +1046,9 @@ function PhoneCalendar({
   canNext,
   onMonth,
   night,
+  bookingsOn,
+  dim,
+  onBooking,
   money,
   currency,
   sync,
@@ -818,6 +1072,9 @@ function PhoneCalendar({
   canNext: boolean;
   onMonth: (by: number) => void;
   night: (type: CalTypeView, date: string) => ReturnType<typeof nightOf>;
+  bookingsOn: (typeId: string, date: string) => CalBooking[];
+  dim: (b: CalBooking) => boolean;
+  onBooking: (id: string) => void;
   money: (n: number, type?: CalTypeView) => string;
   currency: string;
   sync: SyncState;
@@ -829,7 +1086,7 @@ function PhoneCalendar({
 }) {
   const list = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
-  usePressSelect(view === "days" ? list : grid, view, onSelect, onDone);
+  usePressSelect(view === "days" ? list : grid, view, onSelect, onDone, onBooking);
   const days = dateRange(today, addDays(today, PHONE_SPAN - 1));
   const inSel = (d: string) => !!selection && d >= selection.from && d <= selection.to;
 
@@ -919,6 +1176,18 @@ function PhoneCalendar({
                     <span className={`text-[15px] font-bold tabular-nums ${n.stop ? "text-[#9CA3AF] line-through" : "text-[#111827]"}`}>
                       {money(n.price, mType)}
                     </span>
+                    {(() => {
+                      const here = bookingsOn(mType.id, d);
+                      return (
+                        here.length > 0 && (
+                          <span className="flex flex-wrap gap-1">
+                            {here.map((b) => (
+                              <BookingChip key={b.id} t={t} b={b} today={today} dim={dim(b)} phone />
+                            ))}
+                          </span>
+                        )
+                      );
+                    })()}
                   </span>
                   <span className={`flex-none text-[12px] font-bold ${look.subClass}`}>{look.sub}</span>
                 </button>
@@ -1041,9 +1310,10 @@ function usePressSelect(
   view: string,
   onSelect: (d0: string, d1: string) => void,
   onDone: (d0: string, d1: string) => void,
+  onBooking: (id: string) => void,
 ) {
-  const cb = useRef({ onSelect, onDone });
-  cb.current = { onSelect, onDone };
+  const cb = useRef({ onSelect, onDone, onBooking });
+  cb.current = { onSelect, onDone, onBooking };
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -1094,6 +1364,9 @@ function usePressSelect(
         swallowClick = false;
         return;
       }
+      // A booking chip opens the booking instead of editing the day.
+      const id = (e.target as HTMLElement).closest<HTMLElement>("[data-booking]")?.dataset.booking;
+      if (id) return cb.current.onBooking(id);
       const d = (e.target as HTMLElement).closest<HTMLElement>("[data-date]")?.dataset.date;
       if (d) cb.current.onDone(d, d);
     };

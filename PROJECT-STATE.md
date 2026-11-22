@@ -249,6 +249,14 @@ Guests, plus QA fixes"). Waiting on Ossama's "deploy" after the brief.
 - Guest profiles are per broker company and matched by mobile, then email.
   Deleting a guest's data blanks the profile but keeps the bookings (with
   "Deleted guest") so payouts and history still add up.
-- Not built yet: booking bars in the Calendar ("In Calendar" opens the
-  Calendar without jumping to the booking), guest messaging, reviews, card
-  details.
+- Calendar bookings (design App_Calendar v1.1, added 2026-11-22 on Ossama's
+  request): bars per apartment coloured by stay (staying now / upcoming /
+  checked out) with the platform badge, a platform filter, chips in the month
+  and phone views, booking details with the apartment picker, drag a bar to
+  another identical apartment (same rule as Bookings: upcoming stays only),
+  and "In Calendar" opens the booking. Booked nights lower "left", and linked
+  calendars (whole apartment and its rooms) show "Closed by a linked
+  booking" on screen. Gap: the availability sent to the channels does not
+  yet close linked rooms or the whole apartment; that still relies on the
+  channels' own settings.
+- Not built yet: guest messaging, reviews, card details.

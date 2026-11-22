@@ -121,7 +121,7 @@ export function BookingDetail({
           {t.moveApt}
         </button>
       )}
-      <Link href="/broker/calendar" className={bbtn.sSecondary}>
+      <Link href={`/broker/calendar?booking=${encodeURIComponent(b.id)}`} className={bbtn.sSecondary}>
         <Calendar />
         {t.inCalendar}
       </Link>
