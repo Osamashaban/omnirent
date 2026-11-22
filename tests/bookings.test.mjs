@@ -368,3 +368,11 @@ test("the Bookings and Guests pages are in the side menu", () => {
   assert.match(shell, /\/broker\/bookings/);
   assert.match(shell, /\/broker\/guests/);
 });
+
+test("English counts use the singular for one", () => {
+  const { en } = BOOKING_DICTS;
+  assert.equal(en.bookingsN(1), "1 booking");
+  assert.equal(en.bookingsN(3), "3 bookings");
+  assert.equal(en.guestsCount(1), "1 guest");
+  assert.equal(en.guestsCount(2), "2 guests");
+});

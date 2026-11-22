@@ -102,7 +102,7 @@ export function BookingsApp({ lang, data: initial }: { lang: Lang; data: Booking
       b.guestName,
       (b.guestId && guestById.get(b.guestId)?.phone) || "",
       b.propertyName,
-      unitLabel(t, b),
+      unitLabel(t, b).replace(/[\u2068\u2069]/g, ""),
       b.arrival,
       b.departure,
       nightsCount(b),

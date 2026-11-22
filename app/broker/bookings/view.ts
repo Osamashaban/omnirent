@@ -5,8 +5,11 @@ import type { BookingDict } from "@/lib/booking-i18n";
 import type { BookingView, BookingsData, GuestView } from "@/lib/booking-data";
 import { DIRECT, commissionPct, doubleBooked, guestTags, initialsOf, round2, type GuestTag } from "@/lib/booking-rules";
 
+// The unit name is wrapped in bidi isolates so an English name like
+// "2-bedroom chalet" keeps its order inside Arabic text.
 export function unitLabel(t: BookingDict, b: Pick<BookingView, "unitName" | "count" | "apt">, long = false): string {
-  return b.count > 1 ? `${b.unitName} · ${long ? t.apartment(b.apt) : t.apt(b.apt)}` : b.unitName;
+  const name = `\u2068${b.unitName}\u2069`;
+  return b.count > 1 ? `${name} · ${long ? t.apartment(b.apt) : t.apt(b.apt)}` : name;
 }
 
 export function datesText(t: BookingDict, arrival: string, departure: string): string {
