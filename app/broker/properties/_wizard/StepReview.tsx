@@ -25,7 +25,7 @@ export function StepReview({ form, p, lang, options, goTo, ctx }: StepProps & { 
     ? lang === "ar"
       ? `${prices.map((n) => n.toLocaleString("en-US")).join(" / ")} ${currencyLabel(form.currency, lang)}`
       : `${form.currency} ${prices.map((n) => n.toLocaleString("en-US")).join(" / ")}`
-    : "—";
+    : "-";
   const firstDerived = derived[0]?.unit.rate;
 
   const sections: { title: string; step: number; rows: [string, string][] }[] = [
@@ -33,25 +33,25 @@ export function StepReview({ form, p, lang, options, goTo, ctx }: StepProps & { 
       title: p.basics,
       step: 1,
       rows: [
-        [p.type, name(type) || "—"],
-        [p.publicTitle, form.titleEn || "—"],
-        [p.contact, form.email || "—"],
+        [p.type, name(type) || "-"],
+        [p.publicTitle, form.titleEn || "-"],
+        [p.contact, form.email || "-"],
       ],
     },
     {
       title: p.location,
       step: 2,
       rows: [
-        [p.countryCity, [name(country), name(city)].filter(Boolean).join(" · ") || "—"],
-        [p.compound, form.compound || "—"],
-        [p.timezone, country?.timezone ?? "—"],
+        [p.countryCity, [name(country), name(city)].filter(Boolean).join(" · ") || "-"],
+        [p.compound, form.compound || "-"],
+        [p.timezone, country?.timezone ?? "-"],
       ],
     },
     {
       title: p.units,
       step: 3,
       rows: priced.map(({ key, unit }) => [
-        key === "whole" ? p.wholeApartment : unit.name || "—",
+        key === "whole" ? p.wholeApartment : unit.name || "-",
         form.rentMode === "WHOLE" ? p.unitLine(Number(unit.count) || 1, Number(unit.adults) || 0) : p.roomLine(Number(unit.adults) || 0),
       ]),
     },
@@ -70,16 +70,16 @@ export function StepReview({ form, p, lang, options, goTo, ctx }: StepProps & { 
       title: p.policiesTitle,
       step: 5,
       rows: [
-        [p.cancellation, p.policies[form.cancellationPolicy]?.[0] ?? "—"],
+        [p.cancellation, p.policies[form.cancellationPolicy]?.[0] ?? "-"],
         [p.checkInOut, `${form.checkInTime} / ${form.checkOutTime}`],
-        [p.petsSmokingShort, `${p.petsPolicies[form.petsPolicy] ?? "—"} · ${p.smokingPolicies[form.smokingPolicy] ?? "—"}`],
+        [p.petsSmokingShort, `${p.petsPolicies[form.petsPolicy] ?? "-"} · ${p.smokingPolicies[form.smokingPolicy] ?? "-"}`],
       ],
     },
     {
       title: p.content,
       step: 7,
       rows: [
-        [p.descriptionShort, form.descriptionEn ? (form.descriptionAr ? p.englishArabic : p.englishOnly) : "—"],
+        [p.descriptionShort, form.descriptionEn ? (form.descriptionAr ? p.englishArabic : p.englishOnly) : "-"],
         [p.steps[5], form.taxes.length ? form.taxes.map((t) => t.name).join(sep) : p.none],
       ],
     },

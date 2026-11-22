@@ -68,7 +68,7 @@ export default async function BrokersPage({ searchParams }: Props) {
           ? b.expiredAgo(ago(b, invite.expiresAt, now))
           : user?.lastLoginAt
             ? formatLastLogin(user.lastLoginAt, lang, t, now)
-            : "—";
+            : "-";
     return {
       id: broker.id,
       company: broker.companyName,

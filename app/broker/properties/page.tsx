@@ -125,14 +125,14 @@ export default async function BrokerPropertiesPage({ searchParams }: Props) {
                               <Thumb index={i} />
                               <span className="flex min-w-0 flex-col">
                                 <span className="truncate text-[14px] font-semibold">{r.nickname}</span>
-                                <span className="truncate text-[13px] text-[#4B5563]">{r.title || "—"}</span>
+                                <span className="truncate text-[13px] text-[#4B5563]">{r.title || "-"}</span>
                               </span>
                             </Link>
                           </td>
-                          <td className="px-4 py-3 text-[14px] text-[#374151]">{r.location || "—"}</td>
-                          <td className="px-4 py-3">{r.typeName ? <TypeChip>{r.typeName}</TypeChip> : "—"}</td>
+                          <td className="px-4 py-3 text-[14px] text-[#374151]">{r.location || "-"}</td>
+                          <td className="px-4 py-3">{r.typeName ? <TypeChip>{r.typeName}</TypeChip> : "-"}</td>
                           <td className="px-4 py-3 text-[14px] tabular-nums text-[#374151]">{r.units}</td>
-                          <td className="px-4 py-3 text-[14px] tabular-nums text-[#111827]">{r.price ?? "—"}</td>
+                          <td className="px-4 py-3 text-[14px] tabular-nums text-[#111827]">{r.price ?? "-"}</td>
                           <td className="px-4 py-3">
                             <a
                               href={`/broker/properties/${r.id}?tab=channels`}
@@ -173,10 +173,10 @@ export default async function BrokerPropertiesPage({ searchParams }: Props) {
                         <Thumb index={i} size={56} />
                         <span className="flex min-w-0 flex-1 flex-col gap-1">
                           <span className="truncate text-[15px] font-bold">{r.nickname}</span>
-                          <span className="truncate text-[13px] text-[#4B5563]">{r.location || "—"}</span>
+                          <span className="truncate text-[13px] text-[#4B5563]">{r.location || "-"}</span>
                           <span className="flex flex-wrap items-center gap-2 text-[13px] text-[#374151]">
                             <StatusChip status={r.status} label={p.status[r.status]} />
-                            <span>{p.phoneLine(r.price ?? "—", r.units)}</span>
+                            <span>{p.phoneLine(r.price ?? "-", r.units)}</span>
                           </span>
                         </span>
                       </Link>

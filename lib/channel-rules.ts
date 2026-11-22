@@ -7,6 +7,7 @@
 // the same rules, so a tampered request can't store what the screens refuse.
 // ---------------------------------------------------------------------------
 
+import { parseRevisionDetails, type RevisionDetails } from "./booking-rules.ts";
 import { PLATFORMS, isPropertyLevel, platformById, type Platform } from "./channel-catalog.ts";
 
 // What a card shows: connected, waiting for the platform, needs attention
@@ -472,6 +473,8 @@ export type Revision = {
   arrival: string;
   departure: string;
   rooms: { roomTypeId: string | null; ratePlanId: string | null; arrival: string; departure: string }[];
+  // Guest, prices and payment (Bookings page).
+  details: RevisionDetails;
 };
 
 const iso = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
@@ -506,6 +509,7 @@ export function parseRevision(raw: unknown): Revision | null {
     arrival,
     departure,
     rooms,
+    details: parseRevisionDetails(a),
   };
 }
 

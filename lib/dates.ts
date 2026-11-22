@@ -11,7 +11,7 @@ function dayKey(date: Date) {
 }
 
 export function formatLastLogin(date: Date | null, lang: Lang, t: Dict, now = new Date()): string {
-  if (!date) return "—";
+  if (!date) return "-";
   const locale = lang === "ar" ? "ar-EG-u-nu-latn" : "en-US";
   const time = new Intl.DateTimeFormat(locale, { timeZone: OPS_TIME_ZONE, hour: "numeric", minute: "2-digit" }).format(date);
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
