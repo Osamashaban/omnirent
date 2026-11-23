@@ -83,20 +83,40 @@ export async function cancelCrsBooking(channexBookingId: string, b: CrsBooking):
   }
 }
 
-// Booking.com reports. Throws when the partner refuses.
-export async function reportNoShow(channexBookingId: string): Promise<void> {
-  await channex("POST", `/bookings/${encodeURIComponent(channexBookingId)}/no_show`, { no_show_report: { waived_fees: false } });
+// A direct booking changed here (dates, apartment type, guests, price):
+// recorded with the partner as a modification. Returns false when the partner
+// couldn't be reached; the nights are sent through availability either way.
+export async function modifyCrsBooking(channexBookingId: string, b: CrsBooking): Promise<boolean> {
+  if (!channexConfigured()) return false;
+  try {
+    await channex("PUT", `/bookings/${encodeURIComponent(channexBookingId)}`, crsBody(b, "modified"));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Booking.com reports (Booking.com Reporting API). Throws when the partner
+// refuses.
+export async function reportNoShow(channexBookingId: string, waived = false): Promise<void> {
+  await channex("POST", `/bookings/${encodeURIComponent(channexBookingId)}/no_show`, { no_show_report: { waived_fees: waived } });
 }
 
 export async function reportInvalidCard(channexBookingId: string): Promise<void> {
   await channex("POST", `/bookings/${encodeURIComponent(channexBookingId)}/invalid_card`, {});
 }
 
+// Booking.com cancels the booking with no fee, once the guest had 24 hours to
+// update the card.
+export async function cancelDueInvalidCard(channexBookingId: string): Promise<void> {
+  await channex("POST", `/bookings/${encodeURIComponent(channexBookingId)}/cancel_due_invalid_card`, {});
+}
+
 // Open Airbnb requests to book and inquiries for a property.
 export async function liveRequests(channexPropertyId: string): Promise<LiveRequest[]> {
   if (!channexConfigured()) return [];
   const out: LiveRequest[] = [];
-  for (const event of ["reservation_request", "inquiry"]) {
+  for (const event of ["reservation_request", "inquiry", "alteration_request"]) {
     const answer = await channex(
       "GET",
       `/live_feed?filter[event]=${event}&filter[property_id]=${encodeURIComponent(channexPropertyId)}&order[inserted_at]=desc`,
@@ -110,18 +130,23 @@ export async function liveRequests(channexPropertyId: string): Promise<LiveReque
   return out;
 }
 
-export type Answer = { kind: "accept" } | { kind: "preapprove" } | { kind: "decline"; reason: DeclineReason };
+export type Answer = { kind: "accept" } | { kind: "preapprove" } | { kind: "offer"; total: number } | { kind: "decline"; reason: DeclineReason };
 
-// Accept or decline a request to book, pre-approve an inquiry. Declining an
-// inquiry isn't an action on Airbnb (it's left unanswered), so it sends
-// nothing. Throws when the partner refuses.
-export async function answerRequest(liveFeedId: string, requestKind: "req" | "inq", a: Answer): Promise<void> {
+// Accept or decline a request to book, pre-approve an inquiry or send it a
+// special offer (price for the whole stay), accept or decline a change
+// request. Declining an inquiry isn't an action on Airbnb (it's left
+// unanswered), so it sends nothing. Throws when the partner refuses.
+export async function answerRequest(liveFeedId: string, requestKind: "req" | "inq" | "alt", a: Answer): Promise<void> {
   if (requestKind === "inq" && a.kind === "decline") return;
   const resolution =
-    a.kind === "accept"
-      ? { accept: true }
-      : a.kind === "preapprove"
-        ? { type: "preapproval" }
-        : { accept: false, reason: declineReasonCode(a.reason) };
+    requestKind === "alt"
+      ? { accept: a.kind === "accept" ? "accept" : "decline" }
+      : a.kind === "accept"
+        ? { accept: true }
+        : a.kind === "preapprove"
+          ? { type: "preapproval" }
+          : a.kind === "offer"
+            ? { type: "special_offer", total_price: Math.round(a.total) }
+            : { accept: false, reason: declineReasonCode(a.reason) };
   await channex("POST", `/live_feed/${encodeURIComponent(liveFeedId)}/resolve`, { resolution });
 }

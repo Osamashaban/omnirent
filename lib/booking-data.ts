@@ -15,25 +15,35 @@ import {
   DIRECT,
   aptStatus,
   canCancel,
+  canEdit,
   canMove,
   canReport,
-  canReportNoShow,
   checkDirect,
+  checkEdit,
   checkPayment,
   checkRefund,
+  clashWith,
   directNightly,
   dueOf,
+  editChanges,
+  editRanges,
   emailKindOf,
   firstFreeApt,
   matchGuest,
   paidOf,
   payStateOf,
   phoneKey,
+  reportError,
   round2,
   stageOf,
   type DeclineReason,
   type DirectError,
   type DirectInput,
+  type EditError,
+  type EditInput,
+  type Report,
+  type ReportError,
+  type Slot,
   type DocType,
   type Method,
   type PayState,
@@ -56,9 +66,13 @@ export type BookingView = {
   propertyName: string;
   unitTypeId: string | null;
   unitName: string;
+  link: "whole" | "room" | null;
   count: number;
   maxGuests: number;
   apt: number;
+  split: { at: string; apt: number } | null;
+  rate: number | null;
+  cardReportedAt: string | null;
   arrival: string;
   departure: string;
   adults: number;
@@ -90,7 +104,9 @@ export type BookingView = {
 
 export type RequestView = {
   id: string;
-  kind: "req" | "inq";
+  kind: "req" | "inq" | "alt";
+  // A change request: the booking it changes.
+  bookingId: string | null;
   guest: string;
   country: string;
   propertyName: string;
@@ -123,7 +139,7 @@ export type GuestView = {
   dupOf: string | null;
 };
 
-export type UnitOption = { id: string; propertyId: string; name: string; count: number; maxGuests: number; currency: string };
+export type UnitOption = { id: string; propertyId: string; name: string; count: number; maxGuests: number; currency: string; link: "whole" | "room" | null };
 
 export type BookingsData = {
   today: string;
@@ -164,7 +180,7 @@ function paramsOf(raw: Prisma.JsonValue): Record<string, string | number> {
   return Object.fromEntries(Object.entries(raw).filter(([, v]) => typeof v === "string" || typeof v === "number")) as Record<string, string | number>;
 }
 
-type UnitInfo = { name: string; count: number; maxGuests: number; propertyName: string };
+type UnitInfo = { name: string; count: number; maxGuests: number; propertyName: string; propertyId: string; link: "whole" | "room" | null };
 
 function toView(b: BookingRow, today: string, units: Map<string, UnitInfo>, props: Map<string, string>, directName: string, deletedName: string): BookingView {
   const pl = platformInfo(b.platform, directName);
@@ -187,9 +203,13 @@ function toView(b: BookingRow, today: string, units: Map<string, UnitInfo>, prop
     propertyName: (b.propertyId && props.get(b.propertyId)) || unit?.propertyName || "-",
     unitTypeId: b.unitTypeId,
     unitName: unit?.name ?? "-",
+    link: unit?.link ?? null,
     count: unit?.count ?? 1,
     maxGuests: unit?.maxGuests ?? 0,
     apt: b.apt,
+    split: b.splitAt && b.splitApt ? { at: iso(b.splitAt), apt: b.splitApt } : null,
+    rate: b.rate === null ? null : n(b.rate),
+    cardReportedAt: b.cardReportedAt ? b.cardReportedAt.toISOString() : null,
     arrival,
     departure,
     adults: b.adults,
@@ -224,15 +244,23 @@ async function unitMap(brokerId: string) {
   const props = await prisma.property.findMany({
     where: { brokerId },
     orderBy: { createdAt: "asc" },
-    select: { id: true, nickname: true, archivedAt: true, currency: true, unitTypes: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, count: true, adults: true, children: true } } },
+    select: {
+      id: true,
+      nickname: true,
+      archivedAt: true,
+      currency: true,
+      rentMode: true,
+      unitTypes: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, count: true, adults: true, children: true, kind: true } },
+    },
   });
   const units = new Map<string, UnitInfo>();
   const options: UnitOption[] = [];
   for (const p of props)
     for (const u of p.unitTypes) {
-      const info = { name: u.name, count: Math.max(1, u.count), maxGuests: Math.max(1, u.adults + u.children), propertyName: p.nickname };
+      const link = p.rentMode === "BOTH" ? (u.kind === "WHOLE" ? "whole" : "room") : null;
+      const info = { name: u.name, count: Math.max(1, u.count), maxGuests: Math.max(1, u.adults + u.children), propertyName: p.nickname, propertyId: p.id, link } as UnitInfo;
       units.set(u.id, info);
-      if (!p.archivedAt) options.push({ id: u.id, propertyId: p.id, name: u.name, count: info.count, maxGuests: info.maxGuests, currency: p.currency });
+      if (!p.archivedAt) options.push({ id: u.id, propertyId: p.id, name: u.name, count: info.count, maxGuests: info.maxGuests, currency: p.currency, link });
     }
   return { props, units, options };
 }
@@ -257,7 +285,8 @@ export async function loadBookings(brokerId: string, names: { direct: string; de
       const u = r.unitTypeId ? units.get(r.unitTypeId) : undefined;
       return {
         id: r.id,
-        kind: r.kind === "inq" ? "inq" : "req",
+        kind: r.kind === "inq" ? "inq" : r.kind === "alt" ? "alt" : "req",
+        bookingId: r.bookingId,
         guest: r.guestName || "-",
         country: r.country,
         propertyName: (r.propertyId && propNames.get(r.propertyId)) || u?.propertyName || "-",
@@ -328,6 +357,31 @@ const viewOf = (row: { arrival: Date; departure: Date; status: string }, today: 
   cancelled: row.status === "cancelled",
   stage: stageOf({ arrival: iso(row.arrival), departure: iso(row.departure), cancelled: row.status === "cancelled" }, today),
 });
+
+// Every live booking of the property's unit types, as slots for the clash
+// rules (identical apartments, linked whole apartment and rooms, split stays).
+async function propertySlots(brokerId: string, propertyId: string, excludeId: string) {
+  const prop = await prisma.property.findFirst({ where: { id: propertyId, brokerId }, select: { rentMode: true, unitTypes: { select: { id: true, kind: true } } } });
+  const linkOf = new Map<string, "whole" | "room" | null>((prop?.unitTypes ?? []).map((u) => [u.id, prop!.rentMode === "BOTH" ? (u.kind === "WHOLE" ? "whole" : "room") : null]));
+  const rows = await prisma.channelBooking.findMany({
+    where: { brokerId, unitTypeId: { in: [...linkOf.keys()] }, status: { not: "cancelled" }, id: { not: excludeId } },
+    include: { guestProfile: { select: { name: true } } },
+  });
+  const slots: (Slot & { guest: string })[] = rows.map((x) => ({
+    id: x.id,
+    unitTypeId: x.unitTypeId,
+    apt: x.apt,
+    arrival: iso(x.arrival),
+    departure: iso(x.departure),
+    cancelled: false,
+    propertyId,
+    link: x.unitTypeId ? (linkOf.get(x.unitTypeId) ?? null) : null,
+    splitAt: x.splitAt ? iso(x.splitAt) : null,
+    splitApt: x.splitApt,
+    guest: x.guestProfile?.name || x.guest,
+  }));
+  return { linkOf, slots };
+}
 
 // ---------------------------------------------------------------------------
 // Direct bookings
@@ -428,7 +482,103 @@ export async function createDirect(
   return { ok: true, id: made.b.id, code: made.code };
 }
 
-export type ActionError = "notFound" | "notAllowed" | PaymentErrorCode | "refund" | "noFree" | "noshowEarly" | "platform";
+// Edit a direct booking (design v88): dates, apartment, guests, price per
+// night, split stay. The new nights close and the old ones reopen on every
+// platform; the partner gets the booking as modified.
+export async function editDirect(
+  brokerId: string,
+  byName: string,
+  id: string,
+  f: EditInput,
+): Promise<{ ok: true } | { ok: false; errors: EditError[] } | { ok: false; error: ActionError }> {
+  const today = calendarToday();
+  const b = await ownBooking(brokerId, id);
+  if (!b || !b.unitTypeId || !b.propertyId) return { ok: false, error: "notFound" };
+  if (!canEdit({ platform: b.platform, ...viewOf(b, today) })) return { ok: false, error: "notAllowed" };
+  const unit = await prisma.unitType.findFirst({
+    where: { id: f.unitTypeId, propertyId: b.propertyId, property: { brokerId } },
+    include: { property: { select: { id: true, channexId: true, currency: true, rentMode: true } }, rates: { where: { parentId: null }, select: { channexId: true }, take: 1 } },
+  });
+  if (!unit) return { ok: false, error: "notAllowed" };
+  const count = Math.max(1, unit.count);
+  if (!Number.isInteger(f.apt) || f.apt < 1 || f.apt > count) return { ok: false, error: "notAllowed" };
+  const { slots } = await propertySlots(brokerId, b.propertyId, b.id);
+  const orig: EditInput = {
+    unitTypeId: b.unitTypeId,
+    apt: b.apt,
+    arrival: iso(b.arrival),
+    departure: iso(b.departure),
+    adults: b.adults,
+    children: b.children,
+    rate: b.rate === null ? null : n(b.rate),
+    split: b.splitAt && b.splitApt ? { at: iso(b.splitAt), apt: b.splitApt } : null,
+  };
+  const link = unit.property.rentMode === "BOTH" ? (unit.kind === "WHOLE" ? "whole" : "room") : null;
+  const split = count > 1 ? f.split : null;
+  const input = { ...f, split };
+  const errors = checkEdit(input, { id: b.id, today, orig, unit: { id: unit.id, count, maxGuests: Math.max(1, unit.adults + unit.children), propertyId: b.propertyId, link }, bookings: slots });
+  if (errors.length) return { ok: false, errors };
+
+  const changes = editChanges(input, orig);
+  const repriced = changes.includes("dates") || changes.includes("rate") || input.unitTypeId !== orig.unitTypeId;
+  const nightly = repriced ? directNightly(await nightPrices(unit.id, input.arrival, input.departure), input.rate) : nightlyOf(b.nightly);
+  const total = repriced ? round2(nightly.reduce((a, x) => a + x.p, 0)) : n(b.total);
+  const unitName = count > 1 ? `${unit.name} · ${input.apt}` : unit.name;
+  await prisma.$transaction([
+    prisma.channelBooking.update({
+      where: { id: b.id },
+      data: {
+        unitTypeId: unit.id,
+        apt: input.apt,
+        arrival: new Date(input.arrival),
+        departure: new Date(input.departure),
+        adults: input.adults,
+        children: Math.max(0, input.children),
+        rate: input.rate,
+        splitAt: split ? new Date(split.at) : null,
+        splitApt: split ? split.apt : null,
+        nightly,
+        total,
+      },
+    }),
+    ...changes.map((c) =>
+      c === "dates"
+        ? event(b.id, "editDates", { a: orig.arrival, b: orig.departure, c: input.arrival, d: input.departure }, byName)
+        : c === "apt"
+          ? event(b.id, "editApt", { u: unitName }, byName)
+          : c === "guests"
+            ? event(b.id, "editGuests", { a: input.adults, c: Math.max(0, input.children) }, byName)
+            : c === "rate"
+              ? event(b.id, "editRate", { p: input.rate ?? 0 }, byName)
+              : split
+                ? event(b.id, "split", { d: split.at, a: split.apt }, byName)
+                : event(b.id, "unsplit", {}, byName),
+    ),
+  ]);
+
+  if (b.channexBookingId && unit.channexId && unit.property.channexId) {
+    await bx.modifyCrsBooking(b.channexBookingId, {
+      propertyId: unit.property.channexId,
+      roomTypeId: unit.channexId,
+      ratePlanId: unit.rates[0]?.channexId ?? null,
+      code: b.code,
+      arrival: input.arrival,
+      departure: input.departure,
+      arrivalTime: b.arrivalTime,
+      currency: b.currency,
+      nightly,
+      adults: input.adults,
+      children: Math.max(0, input.children),
+      name: b.guestProfile?.name || b.guest,
+      phone: b.guestProfile?.phone ?? "",
+      note: "",
+    });
+  }
+  for (const r of editRanges(input, orig)) await pushNights(b.propertyId, r.from, r.to);
+  return { ok: true };
+}
+
+export type ActionError = "notFound" | "notAllowed" | PaymentErrorCode | "refund" | "noFree" | "platform" | "clash" | ReportError;
 type PaymentErrorCode = "zero" | "over" | "date";
 
 export async function recordPayment(brokerId: string, byName: string, id: string, amount: number, method: Method, date: string): Promise<{ ok: true; confirmed: boolean } | { ok: false; error: ActionError; due?: number }> {
@@ -478,7 +628,7 @@ export async function moveBooking(brokerId: string, byName: string, id: string, 
   return { ok: true };
 }
 
-export async function cancelDirect(brokerId: string, byName: string, id: string, refund: number, method: Method): Promise<{ ok: boolean; error?: ActionError }> {
+export async function cancelDirect(brokerId: string, byName: string, id: string, refund: number, method: Method, wa = false): Promise<{ ok: boolean; error?: ActionError }> {
   const today = calendarToday();
   const b = await ownBooking(brokerId, id);
   if (!b) return { ok: false, error: "notFound" };
@@ -495,6 +645,7 @@ export async function cancelDirect(brokerId: string, byName: string, id: string,
         ]
       : []),
     event(id, "cancelledBy", {}, byName),
+    ...(wa ? [event(id, "waCancel", {}, byName)] : []),
   ]);
   if (b.channexBookingId && b.unitTypeId) {
     const unit = await prisma.unitType.findUnique({ where: { id: b.unitTypeId }, include: { property: { select: { channexId: true } } } });
@@ -520,20 +671,37 @@ export async function cancelDirect(brokerId: string, byName: string, id: string,
   return { ok: true };
 }
 
-export async function reportToBdc(brokerId: string, byName: string, id: string, what: "noshow" | "card"): Promise<{ ok: boolean; error?: ActionError }> {
+export async function reportToBdc(
+  brokerId: string,
+  byName: string,
+  id: string,
+  what: Report,
+): Promise<{ ok: boolean; error?: ActionError }> {
   const today = calendarToday();
   const b = await ownBooking(brokerId, id);
   if (!b) return { ok: false, error: "notFound" };
-  if (!canReport({ platform: b.platform, ...viewOf(b, today) })) return { ok: false, error: "notAllowed" };
-  if (what === "noshow" && !canReportNoShow({ arrival: iso(b.arrival) }, today)) return { ok: false, error: "noshowEarly" };
+  const v = viewOf(b, today);
+  if (!canReport({ platform: b.platform, ...v })) return { ok: false, error: "notAllowed" };
+  const err = reportError(what, { arrival: v.arrival, stage: v.stage, cardReportedAt: b.cardReportedAt ? b.cardReportedAt.toISOString() : null }, today);
+  if (err) return { ok: false, error: err };
   if (!b.channexBookingId) return { ok: false, error: "platform" };
   try {
-    if (what === "noshow") await bx.reportNoShow(b.channexBookingId);
-    else await bx.reportInvalidCard(b.channexBookingId);
+    if (what === "noshow" || what === "noshoww") await bx.reportNoShow(b.channexBookingId, what === "noshoww");
+    else if (what === "card") await bx.reportInvalidCard(b.channexBookingId);
+    else if (what === "cardc") await bx.cancelDueInvalidCard(b.channexBookingId);
+    else return { ok: false, error: "notAllowed" };
   } catch {
     return { ok: false, error: "platform" };
   }
-  await event(id, what === "noshow" ? "noShow" : "card", {}, byName);
+  if (what === "card") {
+    await prisma.$transaction([prisma.channelBooking.update({ where: { id }, data: { cardReportedAt: new Date() } }), event(id, "card", {}, byName)]);
+  } else if (what === "cardc") {
+    await prisma.$transaction([
+      prisma.channelBooking.update({ where: { id }, data: { status: "cancelled", cancelledAt: new Date(), cancelledBy: "card", pending: false } }),
+      event(id, "cardCancelled", {}, byName),
+    ]);
+    await pushNights(b.propertyId, v.arrival, v.departure);
+  } else await event(id, what === "noshoww" ? "noShowWaived" : "noShow", {}, byName);
   return { ok: true };
 }
 
@@ -545,24 +713,54 @@ export async function saveBookingNote(brokerId: string, id: string, note: string
 // ---------------------------------------------------------------------------
 // Airbnb requests
 
-export async function answerRequest(
-  brokerId: string,
-  byName: string,
-  id: string,
-  answer: { kind: "accept" } | { kind: "preapprove" } | { kind: "decline"; reason: DeclineReason },
-): Promise<{ ok: boolean; error?: ActionError }> {
+export type RequestAnswer = { kind: "accept" } | { kind: "preapprove" } | { kind: "offer"; total: number } | { kind: "decline"; reason: DeclineReason } | { kind: "declineChange" };
+
+export async function answerRequest(brokerId: string, byName: string, id: string, answer: RequestAnswer): Promise<{ ok: boolean; error?: ActionError; guest?: string }> {
   const r = await prisma.bookingRequest.findFirst({ where: { id, brokerId, status: "open" } });
   if (!r || r.expiresAt <= new Date()) return { ok: false, error: "notFound" };
-  if ((answer.kind === "accept" && r.kind !== "req") || (answer.kind === "preapprove" && r.kind !== "inq")) return { ok: false, error: "notAllowed" };
+  const kind = r.kind === "inq" ? "inq" : r.kind === "alt" ? "alt" : "req";
+  const fits =
+    kind === "alt"
+      ? answer.kind === "accept" || answer.kind === "declineChange"
+      : kind === "req"
+        ? answer.kind === "accept" || answer.kind === "decline"
+        : answer.kind === "preapprove" || answer.kind === "offer" || answer.kind === "decline";
+  if (!fits) return { ok: false, error: "notAllowed" };
+
+  // A change request is accepted only when the new dates are free, linked
+  // whole apartment and rooms included.
+  const booking = kind === "alt" && r.bookingId ? await ownBooking(brokerId, r.bookingId) : null;
+  if (kind === "alt" && (!booking || booking.status === "cancelled")) return { ok: false, error: "notFound" };
+  if (kind === "alt" && answer.kind === "accept" && booking?.propertyId && booking.unitTypeId) {
+    const { linkOf, slots } = await propertySlots(brokerId, booking.propertyId, booking.id);
+    const c = clashWith(
+      { id: booking.id, unitTypeId: booking.unitTypeId, apt: booking.apt, arrival: iso(r.arrival), departure: iso(r.departure), cancelled: false, propertyId: booking.propertyId, link: linkOf.get(booking.unitTypeId) ?? null },
+      slots,
+    );
+    if (c) return { ok: false, error: "clash", guest: c.guest };
+  }
   try {
-    await bx.answerRequest(r.channexId, r.kind === "inq" ? "inq" : "req", answer);
+    const a = answer.kind === "declineChange" ? ({ kind: "decline", reason: "dates" } as const) : answer;
+    await bx.answerRequest(r.channexId, kind, a);
   } catch {
     return { ok: false, error: "platform" };
   }
-  await prisma.bookingRequest.update({
-    where: { id },
-    data: { status: answer.kind === "accept" ? "accepted" : answer.kind === "preapprove" ? "preapproved" : "declined", answeredBy: byName },
-  });
+  const status =
+    answer.kind === "accept" ? "accepted" : answer.kind === "preapprove" ? "preapproved" : answer.kind === "offer" ? "offered" : "declined";
+  await prisma.bookingRequest.update({ where: { id }, data: { status, answeredBy: byName } });
+
+  // The platform sends the changed booking soon after; show it right away.
+  if (booking && answer.kind === "accept") {
+    await prisma.$transaction([
+      prisma.channelBooking.update({
+        where: { id: booking.id },
+        data: { arrival: r.arrival, departure: r.departure, adults: r.adults, children: r.children, prevArrival: booking.arrival, prevDeparture: booking.departure, changedAt: new Date() },
+      }),
+      event(booking.id, "altAccepted", {}, byName),
+    ]);
+    for (const x of editRanges({ arrival: iso(r.arrival), departure: iso(r.departure) }, { arrival: iso(booking.arrival), departure: iso(booking.departure) }))
+      await pushNights(booking.propertyId, x.from, x.to);
+  }
   return { ok: true };
 }
 
@@ -588,13 +786,17 @@ export async function pullRequests(brokerId: string, force = false): Promise<voi
       continue;
     }
     for (const r of list) {
-      const unitTypeId = r.roomTypeId ? (p.unitTypes.find((u) => u.channexId === r.roomTypeId)?.id ?? null) : null;
+      // A change request belongs to one of the company's bookings.
+      const target = r.kind === "alt" && r.bookingId ? await prisma.channelBooking.findFirst({ where: { brokerId, channexBookingId: r.bookingId }, include: { guestProfile: { select: { name: true } } } }) : null;
+      if (r.kind === "alt" && !target) continue;
+      const unitTypeId = target ? target.unitTypeId : r.roomTypeId ? (p.unitTypes.find((u) => u.channexId === r.roomTypeId)?.id ?? null) : null;
       const data = {
         brokerId,
         kind: r.kind,
+        bookingId: target?.id ?? null,
         propertyId: p.id,
         unitTypeId,
-        guestName: r.guest.slice(0, 120),
+        guestName: (target ? target.guestProfile?.name || target.guest : r.guest).slice(0, 120),
         country: r.country,
         arrival: new Date(r.arrival),
         departure: new Date(r.departure),

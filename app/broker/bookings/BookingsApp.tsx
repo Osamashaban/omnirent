@@ -12,13 +12,13 @@ import type { Lang } from "@/lib/i18n";
 import type { BookingView, BookingsData, RequestView } from "@/lib/booking-data";
 import { PAY_FILTERS, TABS, inTab, sortForTab, toCsv, type BookingTab } from "@/lib/booking-rules";
 import { Toast } from "@/components/ops/Overlay";
-import { Alert, Ban, CalendarCheck, Check, Clock, Download, Plug, Plus } from "@/components/broker/booking-icons";
+import { Alert, Ban, CalendarCheck, Check, Clock, Download, Plug, Plus, Swap } from "@/components/broker/booking-icons";
 import { Pill, SearchBox, Tile, bbtn } from "@/components/broker/booking-ui";
-import { useAccept, useBookings, type BookingsCtx } from "./useBookings";
-import { datesText, download, nightsCount, payLabel, unitLabel } from "./view";
+import { useAccept, useBookings, useDeclineChange, type BookingsCtx } from "./useBookings";
+import { altInfo, datesText, download, nightsCount, payLabel, unitLabel } from "./view";
 import { BookingDetail } from "./BookingDetail";
 import { RequestPanel, hoursTo } from "./RequestPanel";
-import { DeclineDialog, NewBookingPanel } from "./BookingDialogs";
+import { DeclineDialog, NewBookingPanel, OfferDialog } from "./BookingDialogs";
 
 export type Dlg =
   | { k: "new"; guestId?: string }
@@ -26,6 +26,8 @@ export type Dlg =
   | { k: "pay" }
   | { k: "move" }
   | { k: "cancel" }
+  | { k: "edit" }
+  | { k: "offer"; req: RequestView }
   | { k: "report" }
   | { k: "more" };
 
@@ -252,7 +254,7 @@ export function BookingsApp({ lang, data: initial }: { lang: Lang; data: Booking
                   <span>{t.reqNote}</span>
                 </div>
                 {data.requests.map((r) => (
-                  <RequestCard key={r.id} ctx={ctx} r={r} onOpen={() => setReqId(r.id)} onDecline={() => setDlg({ k: "decline", req: r })} />
+                  <RequestCard key={r.id} ctx={ctx} r={r} onOpen={() => setReqId(r.id)} onDecline={() => setDlg({ k: "decline", req: r })} onOffer={() => setDlg({ k: "offer", req: r })} />
                 ))}
               </div>
             ) : (
@@ -262,7 +264,7 @@ export function BookingsApp({ lang, data: initial }: { lang: Lang; data: Booking
       )}
 
       {open && <BookingDetail ctx={ctx} b={open} dlg={dlg} setDlg={setDlg} onClose={() => setOpenId(null)} onOpen={setOpenId} />}
-      {req && <RequestPanel ctx={ctx} r={req} onClose={() => setReqId(null)} onDecline={() => setDlg({ k: "decline", req })} />}
+      {req && <RequestPanel ctx={ctx} r={req} onClose={() => setReqId(null)} onDecline={() => setDlg({ k: "decline", req })} onOffer={() => setDlg({ k: "offer", req })} />}
       {dlg?.k === "new" && <NewBookingPanel ctx={ctx} guestId={dlg.guestId} onClose={() => setDlg(null)} onSaved={(id) => {
             setDlg(null);
             setTab("all");
@@ -270,6 +272,17 @@ export function BookingsApp({ lang, data: initial }: { lang: Lang; data: Booking
           }} />}
       {dlg?.k === "decline" && (
         <DeclineDialog
+          ctx={ctx}
+          r={dlg.req}
+          onClose={() => setDlg(null)}
+          onDone={() => {
+            setDlg(null);
+            setReqId(null);
+          }}
+        />
+      )}
+      {dlg?.k === "offer" && (
+        <OfferDialog
           ctx={ctx}
           r={dlg.req}
           onClose={() => setDlg(null)}
@@ -444,11 +457,13 @@ function BookingCards({ ctx, rows, onOpen }: { ctx: BookingsCtx; rows: BookingVi
   );
 }
 
-function RequestCard({ ctx, r, onOpen, onDecline }: { ctx: BookingsCtx; r: RequestView; onOpen: () => void; onDecline: () => void }) {
-  const { t } = ctx;
+function RequestCard({ ctx, r, onOpen, onDecline, onOffer }: { ctx: BookingsCtx; r: RequestView; onOpen: () => void; onDecline: () => void; onOffer: () => void }) {
+  const { t, data } = ctx;
   const h = hoursTo(r.expiresAt);
   const accept = useAccept(ctx);
+  const declineChange = useDeclineChange(ctx);
   const nights = nightsCount(r);
+  const alt = altInfo(r, data.bookings);
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-[#E5E7EB] bg-white p-4">
       <button type="button" onClick={onOpen} className="flex cursor-pointer flex-wrap items-center gap-2.5 border-0 bg-transparent p-0 text-start text-[#111827] min-[900px]:pointer-events-none">
@@ -473,16 +488,35 @@ function RequestCard({ ctx, r, onOpen, onDecline }: { ctx: BookingsCtx; r: Reque
           <span className="text-[#6B7280]">{t.datesLbl}</span> <b>{`${datesText(t, r.arrival, r.departure)} · ${t.nights(nights)}`}</b>
         </span>
         <span>
-          <span className="text-[#6B7280]">{t.totalLbl}</span> <b>{t.money(r.total, r.currency)}</b> · {t.yourPayout(t.money(r.payout, r.currency))}
+          <span className="text-[#6B7280]">{t.totalLbl}</span> <b>{t.money(r.total, r.currency)}</b>
+          {r.kind !== "alt" && <> · {t.yourPayout(t.money(r.payout, r.currency))}</>}
         </span>
       </div>
+      {alt && (
+        <div className="flex gap-2 rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2.5 text-[13px] leading-[1.6] text-[#1E3A8A]">
+          <Swap size={16} />
+          <span>
+            {t.v90.altTxt(
+              alt.b.code,
+              `${datesText(t, alt.b.arrival, alt.b.departure)} · ${t.nights(nightsCount(alt.b))}`,
+              `${datesText(t, r.arrival, r.departure)} · ${t.nights(nights)}`,
+              `${alt.diff > 0 ? "+" : ""}${t.money(alt.diff, r.currency)}`,
+            )}
+          </span>
+        </div>
+      )}
       {r.message && <p className="m-0 rounded-lg bg-[#F9FAFB] px-3 py-2.5 text-[14px] leading-[1.6] text-[#374151]">«{r.message}»</p>}
       <div className="flex flex-wrap gap-2.5">
         <button type="button" disabled={ctx.busy} onClick={() => accept(r)} className={bbtn.primary}>
           <Check />
-          {r.kind === "req" ? t.accept : t.preapprove}
+          {r.kind === "req" ? t.accept : r.kind === "alt" ? t.v90.acceptChange : t.preapprove}
         </button>
-        <button type="button" disabled={ctx.busy} onClick={onDecline} className={bbtn.dangerOutline}>
+        {r.kind === "inq" && (
+          <button type="button" disabled={ctx.busy} onClick={onOffer} className={bbtn.secondary}>
+            {t.v90.specialOffer}
+          </button>
+        )}
+        <button type="button" disabled={ctx.busy} onClick={() => (r.kind === "alt" ? declineChange(r) : onDecline())} className={bbtn.dangerOutline}>
           {t.decline}
         </button>
         <span className="self-center text-[12px] text-[#6B7280]">{t.replyOnAirbnb}</span>

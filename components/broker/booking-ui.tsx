@@ -47,6 +47,7 @@ export const PILL = {
   dup: "bg-[#F3E8FF] text-[#6B21A8]",
   req: "bg-[#FFE4E6] text-[#BE123C]",
   inq: "bg-[#F3F4F6] text-[#374151]",
+  alt: "bg-[#DBEAFE] text-[#1D4ED8]",
   soon: "bg-[#FEE2E2] text-[#B91C1C]",
   later: "bg-[#FEF3C7] text-[#92400E]",
   request: "bg-[#FEF3C7] text-[#92400E]",

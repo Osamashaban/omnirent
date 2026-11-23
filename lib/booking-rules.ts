@@ -183,7 +183,7 @@ export function doubleBooked(list: Slot[], today: string): Set<string> {
 }
 
 // The other booking this one clashes with.
-export function clashWith<T extends Slot>(b: T, list: T[]): T | undefined {
+export function clashWith<T extends Slot>(b: Slot, list: T[]): T | undefined {
   return list.find((x) => clashes(b, x));
 }
 
@@ -370,6 +370,147 @@ export function canReportNoShow(b: { arrival: string }, today: string): boolean 
   return today >= b.arrival && dayDiff(b.arrival, today) <= 2;
 }
 
+// Design v90: what can be reported to Booking.com, and when.
+// noshow / noshoww (fee waived): from the check-in day up to 48 hours after.
+// card: up to the check-in day, once. cardc: cancel once 24 hours have passed
+// since the card was reported. dates: a stay in progress left early or was
+// extended (switched off until the connection partner confirms the call).
+export const REPORTS = ["noshow", "noshoww", "card", "cardc", "dates"] as const;
+export type Report = (typeof REPORTS)[number];
+export const STAY_CHANGE = false;
+
+export type ReportError = "noshowEarly" | "noshowLate" | "cardLate" | "cardAgain" | "cardFirst" | "cardWait" | "datesStay" | "notAllowed";
+
+export function reportError(what: Report, b: { arrival: string; stage: Stage; cardReportedAt: string | null }, today: string, now = new Date()): ReportError | null {
+  if (what === "noshow" || what === "noshoww") {
+    if (today < b.arrival) return "noshowEarly";
+    if (dayDiff(b.arrival, today) > 2) return "noshowLate";
+    return null;
+  }
+  if (what === "card") {
+    if (today > b.arrival) return "cardLate";
+    if (b.cardReportedAt) return "cardAgain";
+    return null;
+  }
+  if (what === "cardc") {
+    if (!b.cardReportedAt) return "cardFirst";
+    if (now.getTime() - Date.parse(b.cardReportedAt) < 24 * 3_600_000) return "cardWait";
+    return null;
+  }
+  if (!STAY_CHANGE) return "notAllowed";
+  return b.stage === "arr" || b.stage === "stay" || b.stage === "dep" ? null : "datesStay";
+}
+
+// The report the dialog starts on: the card before check-in, otherwise a no-show.
+export function defaultReport(b: { stage: Stage; cardReportedAt: string | null }): Report {
+  return b.stage === "up" ? (b.cardReportedAt ? "cardc" : "card") : "noshow";
+}
+
+// ---------------------------------------------------------------------------
+// Editing a direct booking (design v88): dates, apartment, guests, price per
+// night, and splitting the stay across two identical apartments.
+
+export function canEdit(b: { platform: string; cancelled: boolean; stage: Stage }): boolean {
+  return b.platform === DIRECT && !b.cancelled && b.stage !== "past";
+}
+
+export type EditInput = {
+  unitTypeId: string;
+  apt: number;
+  arrival: string;
+  departure: string;
+  adults: number;
+  children: number;
+  rate: number | null;
+  split: { at: string; apt: number } | null;
+};
+
+export type EditOrig = EditInput;
+
+export type EditError =
+  | { field: "edates"; code: "badDates" | "pastMove" | "nothing" }
+  | { field: "edates"; code: "taken"; guest: string; from: string; to: string }
+  | { field: "eadults"; code: "noGuests" }
+  | { field: "eadults"; code: "tooMany"; max: number }
+  | { field: "erate"; code: "badRate" }
+  | { field: "esplit"; code: "splitDay" | "splitApt" }
+  | { field: "esplit"; code: "splitTaken"; apt: number; guest: string };
+
+export type EditUnit = { id: string; count: number; maxGuests: number; propertyId: string | null; link: "whole" | "room" | null };
+
+export function checkEdit(
+  f: EditInput,
+  ctx: { id: string; today: string; orig: EditOrig; unit: EditUnit; bookings: (Slot & { guest: string })[] },
+): EditError[] {
+  const e: EditError[] = [];
+  const o = ctx.orig;
+  let datesOk = true;
+  if (!isIso(f.arrival) || !isIso(f.departure) || f.departure <= f.arrival) {
+    e.push({ field: "edates", code: "badDates" });
+    datesOk = false;
+  } else if (f.arrival < ctx.today && f.arrival !== o.arrival) {
+    e.push({ field: "edates", code: "pastMove" });
+    datesOk = false;
+  }
+  if (!(f.adults >= 1)) e.push({ field: "eadults", code: "noGuests" });
+  else if (f.adults + Math.max(0, f.children) > ctx.unit.maxGuests) e.push({ field: "eadults", code: "tooMany", max: ctx.unit.maxGuests });
+  if (f.rate !== null && !(f.rate > 0)) e.push({ field: "erate", code: "badRate" });
+  let split = f.split;
+  if (datesOk && split) {
+    if (!isIso(split.at) || split.at <= f.arrival || split.at >= f.departure) {
+      e.push({ field: "esplit", code: "splitDay" });
+      split = null;
+    } else if (!(split.apt >= 1 && split.apt <= ctx.unit.count) || split.apt === f.apt) {
+      e.push({ field: "esplit", code: "splitApt" });
+      split = null;
+    }
+  }
+  if (datesOk) {
+    const base = { unitTypeId: ctx.unit.id, propertyId: ctx.unit.propertyId, link: ctx.unit.link, cancelled: false };
+    const first: Slot = { id: ctx.id, ...base, apt: f.apt, arrival: f.arrival, departure: split ? split.at : f.departure };
+    const c = ctx.bookings.find((x) => clashes(first, x));
+    if (c) e.push({ field: "edates", code: "taken", guest: c.guest, from: c.arrival, to: c.departure });
+    if (split && !e.some((x) => x.field === "esplit")) {
+      const second: Slot = { id: ctx.id, ...base, apt: split.apt, arrival: split.at, departure: f.departure };
+      const c2 = ctx.bookings.find((x) => clashes(second, x));
+      if (c2) e.push({ field: "esplit", code: "splitTaken", apt: split.apt, guest: c2.guest });
+    }
+  }
+  if (!e.length && editChanges(f, o).length === 0) e.push({ field: "edates", code: "nothing" });
+  return e;
+}
+
+export type EditChange = "dates" | "apt" | "guests" | "rate" | "split";
+
+// What a save changes, for the activity log (one line each).
+export function editChanges(f: EditInput, o: EditOrig): EditChange[] {
+  const out: EditChange[] = [];
+  if (f.arrival !== o.arrival || f.departure !== o.departure) out.push("dates");
+  if (f.unitTypeId !== o.unitTypeId || f.apt !== o.apt) out.push("apt");
+  if (f.adults !== o.adults || f.children !== o.children) out.push("guests");
+  if ((f.rate ?? 0) !== (o.rate ?? 0)) out.push("rate");
+  const fs = f.split ? `${f.split.at}:${f.split.apt}` : "";
+  const os = o.split ? `${o.split.at}:${o.split.apt}` : "";
+  if (fs !== os) out.push("split");
+  return out;
+}
+
+// The nights whose availability must be sent again after an edit: the old
+// stay and the new one.
+export function editRanges(f: { arrival: string; departure: string }, o: { arrival: string; departure: string }): { from: string; to: string }[] {
+  if (f.arrival === o.arrival && f.departure === o.departure) return [{ from: f.arrival, to: f.departure }];
+  if (overlaps(f, o)) return [{ from: f.arrival < o.arrival ? f.arrival : o.arrival, to: f.departure > o.departure ? f.departure : o.departure }];
+  return [
+    { from: o.arrival, to: o.departure },
+    { from: f.arrival, to: f.departure },
+  ];
+}
+
+// The cancellation message a broker sends on WhatsApp (opened ready to send).
+export function waMessageLink(phone: string, text: string): string {
+  return `${waLink(phone)}?text=${encodeURIComponent(text)}`;
+}
+
 export function canReport(b: { platform: string; cancelled: boolean; stage: Stage }): boolean {
   return b.platform === "bdc" && !b.cancelled && b.stage !== "past";
 }
@@ -469,7 +610,9 @@ export function parseRevisionDetails(a: Record<string, unknown>): RevisionDetail
 // An Airbnb request to book or inquiry from the live feed.
 export type LiveRequest = {
   id: string;
-  kind: "req" | "inq";
+  kind: "req" | "inq" | "alt";
+  // A change request (Airbnb alteration): the partner's booking it changes.
+  bookingId: string | null;
   propertyId: string;
   roomTypeId: string | null;
   guest: string;
@@ -491,8 +634,10 @@ export function parseLiveRequest(raw: unknown, now = new Date()): LiveRequest | 
   const a = r?.attributes;
   if (!a || typeof r?.id !== "string") return null;
   const event = a.event;
-  if (event !== "reservation_request" && event !== "inquiry") return null;
-  const p = (a.payload ?? {}) as Record<string, unknown>;
+  if (event !== "reservation_request" && event !== "inquiry" && event !== "alteration_request") return null;
+  const payload = (a.payload ?? {}) as Record<string, unknown>;
+  if (event === "alteration_request") return parseAlteration(r.id, a, payload, now);
+  const p = payload;
   const pick = (...keys: string[]) => keys.map((k) => p[k]).find((v) => v !== undefined && v !== null);
   const arrival = strOf(pick("checkin_date", "arrival_date", "start_date"), 10);
   const departure = strOf(pick("checkout_date", "departure_date", "end_date"), 10);
@@ -503,6 +648,7 @@ export function parseLiveRequest(raw: unknown, now = new Date()): LiveRequest | 
   return {
     id: r.id,
     kind: event === "inquiry" ? "inq" : "req",
+    bookingId: null,
     propertyId: strOf(a.property_id ?? p.property_id, 60),
     roomTypeId: strOf(pick("room_type_id"), 60) || null,
     guest: strOf(pick("guest_name")) || [strOf(guestObj.first_name ?? guestObj.name, 80), strOf(guestObj.last_name ?? guestObj.surname, 80)].filter(Boolean).join(" "),
@@ -515,6 +661,39 @@ export function parseLiveRequest(raw: unknown, now = new Date()): LiveRequest | 
     payout: round2(numOf(pick("expected_payout_amount", "payout", "total_price"))),
     currency: strOf(pick("currency"), 3).toUpperCase() || "EGP",
     message: strOf(pick("message", "last_message"), 2000),
+    expiresAt: Number.isFinite(expires) ? new Date(expires) : new Date((Number.isFinite(inserted) ? inserted : now.getTime()) + 24 * 3_600_000),
+    resolved: p.resolved === true,
+  };
+}
+
+// An Airbnb change request: payload.bms is the booking as it would be after
+// the change (dates, guests, amount) and names the booking it changes.
+function parseAlteration(id: string, a: Record<string, unknown>, p: Record<string, unknown>, now: Date): LiveRequest | null {
+  const bms = (p.bms ?? {}) as Record<string, unknown>;
+  const arrival = strOf(bms.arrival_date, 10);
+  const departure = strOf(bms.departure_date, 10);
+  const bookingId = strOf(bms.booking_id ?? p.booking_id, 60);
+  if (!isIso(arrival) || !isIso(departure) || departure <= arrival || !bookingId) return null;
+  const occ = (bms.occupancy ?? {}) as Record<string, unknown>;
+  const inserted = Date.parse(strOf(a.inserted_at, 40));
+  const expires = Date.parse(strOf(p.expires_at, 40));
+  const amount = round2(numOf(bms.amount));
+  return {
+    id,
+    kind: "alt",
+    bookingId,
+    propertyId: strOf(a.property_id ?? p.property_id, 60),
+    roomTypeId: null,
+    guest: "",
+    country: "",
+    arrival,
+    departure,
+    adults: Math.max(1, Math.round(numOf(occ.adults)) || 1),
+    children: Math.max(0, Math.round(numOf(occ.children))),
+    total: amount,
+    payout: amount,
+    currency: strOf(bms.currency, 3).toUpperCase() || "EGP",
+    message: strOf(p.message ?? p.last_message, 2000),
     expiresAt: Number.isFinite(expires) ? new Date(expires) : new Date((Number.isFinite(inserted) ? inserted : now.getTime()) + 24 * 3_600_000),
     resolved: p.resolved === true,
   };

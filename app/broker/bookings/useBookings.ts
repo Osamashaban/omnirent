@@ -70,14 +70,30 @@ export function useBookings(lang: Lang, initial: BookingsData) {
 
 export type BookingsCtx = ReturnType<typeof useBookings>;
 
-// Accept a request to book, or pre-approve an inquiry.
+// Accept a request to book or a change request, or pre-approve an inquiry.
 export function useAccept(ctx: BookingsCtx) {
   return useCallback(
     async (r: RequestView, after?: () => void) => {
-      const res = await ctx.run(() => answerBookingRequest(r.id, r.kind === "req" ? "accept" : "preapprove"));
+      const { t } = ctx;
+      const res = await ctx.run(() => answerBookingRequest(r.id, r.kind === "inq" ? "preapprove" : "accept"));
       if (!res) return;
       if (res.ok) {
-        ctx.say(r.kind === "req" ? ctx.t.toast.accepted : ctx.t.toast.preapproved);
+        ctx.say(r.kind === "req" ? t.toast.accepted : r.kind === "alt" ? t.v90.toast.altAccepted : t.toast.preapproved);
+        after?.();
+      } else ctx.say(res.error === "clash" ? t.v90.err.altClash(res.guest ?? "") : res.error === "platform" ? t.err.platform : t.err.gone);
+    },
+    [ctx],
+  );
+}
+
+// Decline a change request: the booking stays as it was.
+export function useDeclineChange(ctx: BookingsCtx) {
+  return useCallback(
+    async (r: RequestView, after?: () => void) => {
+      const res = await ctx.run(() => answerBookingRequest(r.id, "declineChange"));
+      if (!res) return;
+      if (res.ok) {
+        ctx.say(ctx.t.v90.toast.altDeclined);
         after?.();
       } else ctx.say(res.error === "platform" ? ctx.t.err.platform : ctx.t.err.gone);
     },

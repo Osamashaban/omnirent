@@ -2,8 +2,8 @@
 // guest stats. Shared by the Bookings and Guests pages; no server code.
 
 import type { BookingDict } from "@/lib/booking-i18n";
-import type { BookingView, BookingsData, GuestView } from "@/lib/booking-data";
-import { DIRECT, commissionPct, doubleBooked, guestTags, initialsOf, round2, type GuestTag } from "@/lib/booking-rules";
+import type { BookingView, BookingsData, GuestView, RequestView } from "@/lib/booking-data";
+import { DIRECT, aptStatus, clashWith, commissionPct, doubleBooked, guestTags, initialsOf, round2, type GuestTag, type Slot } from "@/lib/booking-rules";
 
 // The unit name is wrapped in bidi isolates so an English name like
 // "2-bedroom chalet" keeps its order inside Arabic text.
@@ -80,31 +80,56 @@ export function tagsOf(g: GuestView, s: GuestStats): GuestTag[] {
 
 export const guestIni = (name: string) => initialsOf(name);
 
+// A booking as a slot for the clash rules: linked whole apartment and rooms,
+// and split stays, count (design v88).
+export function slotOf(b: BookingView): Slot {
+  return {
+    id: b.id,
+    unitTypeId: b.unitTypeId,
+    apt: b.apt,
+    arrival: b.arrival,
+    departure: b.departure,
+    cancelled: b.status === "canc",
+    propertyId: b.propertyId,
+    link: b.link,
+    splitAt: b.split?.at ?? null,
+    splitApt: b.split?.apt ?? null,
+  };
+}
+
 export function overIds(data: BookingsData): Set<string> {
-  return doubleBooked(
-    data.bookings.map((b) => ({ id: b.id, unitTypeId: b.unitTypeId, apt: b.apt, arrival: b.arrival, departure: b.departure, cancelled: b.status === "canc" })),
-    data.today,
-  );
+  return doubleBooked(data.bookings.map(slotOf), data.today);
 }
 
 export function overlapsB(a: Pick<BookingView, "arrival" | "departure">, b: Pick<BookingView, "arrival" | "departure">) {
   return a.arrival < b.departure && b.arrival < a.departure;
 }
 
-// The other booking in the same apartment on the same nights, and an
-// identical apartment that is free for this stay.
+// The other booking this one clashes with (same apartment, or the linked
+// whole apartment / room), and an identical apartment that is free for this
+// stay (only for a clash in the same unit type).
 export function clashOf(b: BookingView, all: BookingView[]) {
-  const other = all.find((x) => x.id !== b.id && x.status !== "canc" && x.unitTypeId === b.unitTypeId && x.apt === b.apt && overlapsB(x, b)) ?? null;
+  const slots = all.map(slotOf);
+  const hit = clashWith(slotOf(b), slots);
+  const other = hit ? (all.find((x) => x.id === hit.id) ?? null) : null;
   let free: number | null = null;
-  if (other)
-    for (let a = 1; a <= b.count; a++) {
-      if (a === b.apt) continue;
-      if (!all.some((x) => x.id !== b.id && x.status !== "canc" && x.unitTypeId === b.unitTypeId && x.apt === a && overlapsB(x, b))) {
-        free = a;
-        break;
-      }
-    }
+  if (other && other.unitTypeId === b.unitTypeId && b.unitTypeId)
+    free = aptStatus(slots, b.unitTypeId, b.count, b, b.id).find((a) => a.apt !== b.apt && !a.busy)?.apt ?? null;
   return { other, free };
+}
+
+// An Airbnb change request: the booking it changes, the payout difference
+// (the new amount at the booking's own payout share), and whether the new
+// nights are free (design v89).
+export function altInfo(r: RequestView, all: BookingView[]) {
+  const b = r.kind === "alt" && r.bookingId ? all.find((x) => x.id === r.bookingId) : undefined;
+  if (!b) return null;
+  const oldPayout = round2(b.total - b.commission - b.tax);
+  const share = b.total > 0 ? oldPayout / b.total : 1;
+  const diff = Math.round(r.total * share - oldPayout);
+  const moved = { ...slotOf(b), arrival: r.arrival, departure: r.departure, splitAt: null, splitApt: null };
+  const clash = clashWith(moved, all.map(slotOf));
+  return { b, diff, clash: clash ? (all.find((x) => x.id === clash.id) ?? null) : null };
 }
 
 export function download(name: string, csv: string) {
