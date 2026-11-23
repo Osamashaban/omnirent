@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getCurrentBroker } from "@/lib/broker-auth";
 import { isFlag, isRowId } from "@/lib/action-args";
-import { brokerTypes, calendarToday, restoreNights, saveNights, type BeforeRow } from "@/lib/calendar-data";
+import { bookedLookup, brokerTypes, calendarToday, restoreNights, saveNights, saveNotes, type BeforeRow } from "@/lib/calendar-data";
 import { retryFailed, sendChange } from "@/lib/calendar-sync";
 import {
   BLOCK_REASONS,
@@ -19,6 +19,8 @@ import {
   bulkPreview,
   checkBulk,
   checkQuickEdit,
+  dateRange,
+  weekday,
   isIsoDate,
   lastEditable,
   overrideKey,
@@ -65,6 +67,9 @@ export async function saveCalendar(input: Input): Promise<CalendarResult> {
   const types = await brokerTypes(current.broker.id, typeIds);
   if (!types.length) return { ok: false, error: "noTypes" };
   if (!spec.days.some(Boolean)) return { ok: false, error: action === "bulk" ? "range" : "weekday" };
+  // Fully booked nights are skipped by edits (design v88); block and reset
+  // still apply to every night.
+  const booked = action === "edit" || action === "bulk" ? await bookedLookup(types.map((t) => t.id), from, to) : undefined;
 
   let change: (t: { type: (typeof types)[number]; date: string }, o: Override | undefined) => Override | null;
   if (action === "edit") {
@@ -81,7 +86,7 @@ export async function saveCalendar(input: Input): Promise<CalendarResult> {
       rows.map((r) => [overrideKey(r.unitTypeId, r.date.toISOString().slice(0, 10)), r.price === null ? {} : { price: Number(r.price) }]),
     );
     const bulk = { ...spec, typeIds: types.map((t) => t.id), from, to, confirm: isFlag(input.confirm) && input.confirm };
-    const preview = bulkPreview(types, prices, bulk);
+    const preview = bulkPreview(types, prices, bulk, booked);
     const error = checkBulk(bulk, preview, today);
     if (error === "nothing") return { ok: false, error };
     if (error === "below") return { ok: false, error, count: preview.below };
@@ -96,7 +101,7 @@ export async function saveCalendar(input: Input): Promise<CalendarResult> {
     change = () => null;
   }
 
-  const { targets, skipped } = targetNights(types, from, to, spec.days);
+  const { targets, skipped } = targetNights(types, from, to, spec.days, booked);
   if (!targets.length) return { ok: true, changeId: null, done: 0, skipped, types: types.length, sent: true };
   try {
     const saved = await saveNights({ brokerId: current.broker.id, userId: current.user.id }, targets, change);
@@ -134,4 +139,24 @@ export async function retryCalendar(): Promise<{ ok: boolean; left: number }> {
   const left = await retryFailed(current.broker.id);
   revalidatePath("/broker/calendar");
   return { ok: left === 0, left };
+}
+
+// A team note on the chosen days (design v88). Not sent to the platforms.
+export async function saveCalendarNote(input: { typeIds: unknown; from: unknown; to: unknown; days: unknown; text: unknown }): Promise<{ ok: true; done: number; types: number } | { ok: false; error: "signedOut" | "failed" | "range" }> {
+  const current = await getCurrentBroker();
+  if (!current) return { ok: false, error: "signedOut" };
+  const typeIds = readIds(input?.typeIds);
+  const { from, to, days, text } = input ?? {};
+  if (!typeIds?.length || typeof text !== "string" || text.length > 500 || !Array.isArray(days) || days.length !== 7 || !days.every((d) => typeof d === "boolean")) return { ok: false, error: "failed" };
+  const today = calendarToday();
+  const monthStart = `${today.slice(0, 7)}-01`;
+  if (!isIsoDate(from) || !isIsoDate(to) || to < from || from < monthStart || to > lastEditable(today)) return { ok: false, error: "range" };
+  const dates = dateRange(from, to).filter((d) => days[weekday(d)]);
+  try {
+    const done = await saveNotes(current.broker.id, typeIds, dates, text);
+    revalidatePath("/broker/calendar");
+    return { ok: true, done: dates.length, types: dates.length ? done / dates.length : 0 };
+  } catch {
+    return { ok: false, error: "failed" };
+  }
 }

@@ -94,7 +94,7 @@ export function BookingDetail({
   const cancelled = b.status === "canc";
   const canPay = b.collect === "property" && !cancelled && b.payState !== "paid";
   const rule = { platform: b.platform, cancelled, stage: b.stage };
-  const move = canMove(rule, b.count);
+  const move = canMove(rule, b.count) && !b.split;
   const report = canReport(rule);
   const cancel = canCancel(rule);
   const edit = canEdit(rule);
@@ -406,7 +406,7 @@ export function BookingDetail({
       {dlg?.k === "move" && <MoveDialog ctx={ctx} b={b} onClose={() => setDlg(null)} />}
       {dlg?.k === "cancel" && <CancelDialog ctx={ctx} b={b} onClose={() => setDlg(null)} />}
       {dlg?.k === "report" && <ReportDialog ctx={ctx} b={b} onClose={() => setDlg(null)} />}
-      {dlg?.k === "edit" && <EditPanel ctx={ctx} b={b} onClose={() => setDlg(null)} />}
+      {dlg?.k === "edit" && edit && <EditPanel ctx={ctx} b={b} onClose={() => setDlg(null)} />}
     </>
   );
 }

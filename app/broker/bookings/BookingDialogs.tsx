@@ -66,14 +66,29 @@ function directError(t: BookingDict, e: DirectError): string {
 // ---------------------------------------------------------------------------
 // New direct booking
 
-export function NewBookingPanel({ ctx, guestId, onClose, onSaved }: { ctx: BookingsCtx; guestId?: string; onClose: () => void; onSaved: (id: string) => void }) {
+// Dates and apartment type chosen on the Calendar's free nights (design v88).
+export type NewPreset = { propertyId: string; unitTypeId: string; ci: string; co: string };
+
+export function NewBookingPanel({
+  ctx,
+  guestId,
+  preset: from,
+  onClose,
+  onSaved,
+}: {
+  ctx: BookingsCtx;
+  guestId?: string;
+  preset?: NewPreset;
+  onClose: () => void;
+  onSaved: (id: string) => void;
+}) {
   const { t, data, busy } = ctx;
   const preset = guestId ? data.guests.find((g) => g.id === guestId && !g.deleted) : undefined;
   const [f, setF] = useState({
-    p: data.properties.length === 1 ? data.properties[0].id : "",
-    u: "",
-    ci: "",
-    co: "",
+    p: from?.propertyId ?? (data.properties.length === 1 ? data.properties[0].id : ""),
+    u: from?.unitTypeId ?? "",
+    ci: from?.ci ?? "",
+    co: from?.co ?? "",
     adults: "2",
     children: "0",
     mode: (preset ? "old" : data.guests.some((g) => !g.deleted) ? "old" : "new") as "old" | "new",

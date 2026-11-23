@@ -578,6 +578,26 @@ export async function editDirect(
   return { ok: true };
 }
 
+// Change only the dates of a direct booking (the Calendar's drag and
+// "Change dates", design v88). Everything else stays; a split day moves with
+// the stay.
+export async function changeDirectDates(brokerId: string, byName: string, id: string, arrival: string, departure: string) {
+  const b = await ownBooking(brokerId, id);
+  if (!b || !b.unitTypeId) return { ok: false as const, error: "notFound" as ActionError };
+  const shift = Math.round((Date.parse(arrival) - b.arrival.getTime()) / 86_400_000);
+  const split = b.splitAt && b.splitApt ? { at: iso(new Date(b.splitAt.getTime() + shift * 86_400_000)), apt: b.splitApt } : null;
+  return editDirect(brokerId, byName, id, {
+    unitTypeId: b.unitTypeId,
+    apt: b.apt,
+    arrival,
+    departure,
+    adults: b.adults,
+    children: b.children,
+    rate: b.rate === null ? null : n(b.rate),
+    split: split && split.at > arrival && split.at < departure ? split : null,
+  });
+}
+
 export type ActionError = "notFound" | "notAllowed" | PaymentErrorCode | "refund" | "noFree" | "platform" | "clash" | ReportError;
 type PaymentErrorCode = "zero" | "over" | "date";
 
@@ -615,7 +635,7 @@ export async function moveBooking(brokerId: string, byName: string, id: string, 
   if (!b || !b.unitTypeId) return { ok: false, error: "notFound" };
   const unit = await prisma.unitType.findUnique({ where: { id: b.unitTypeId }, select: { count: true } });
   const count = Math.max(1, unit?.count ?? 1);
-  if (!canMove(viewOf(b, today), count) || !Number.isInteger(apt) || apt < 1 || apt > count || apt === b.apt) return { ok: false, error: "notAllowed" };
+  if (!canMove(viewOf(b, today), count) || b.splitAt || !Number.isInteger(apt) || apt < 1 || apt > count || apt === b.apt) return { ok: false, error: "notAllowed" };
   const others = await prisma.channelBooking.findMany({ where: { brokerId, unitTypeId: b.unitTypeId, status: { not: "cancelled" }, id: { not: b.id } } });
   const status = aptStatus(
     others.map((x) => ({ id: x.id, unitTypeId: x.unitTypeId, apt: x.apt, arrival: iso(x.arrival), departure: iso(x.departure), cancelled: false })),

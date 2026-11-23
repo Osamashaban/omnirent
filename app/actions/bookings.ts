@@ -18,6 +18,7 @@ import {
   confirmBooking,
   createDirect,
   deleteGuestData,
+  changeDirectDates,
   editDirect,
   loadBookings,
   mergeGuests,
@@ -215,6 +216,18 @@ export async function editBooking(id: unknown, input: Record<string, unknown>): 
   });
   if (!r.ok) return "errors" in r ? r : { ok: false, error: r.error };
   return { ok: true, data: await fresh(current) };
+}
+
+// The Calendar's "Change dates" and drag along the row (direct bookings).
+export async function changeBookingDates(id: unknown, arrival: unknown, departure: unknown): Promise<{ ok: true } | { ok: false; errors: EditError[] } | Fail> {
+  const current = await getCurrentBroker();
+  if (!current) return signedOut;
+  if (!isRowId(id) || !isIso(arrival) || !isIso(departure)) return failed;
+  const r = await changeDirectDates(current.broker.id, current.user.name, id, arrival, departure);
+  if (!r.ok) return "errors" in r ? r : { ok: false, error: r.error };
+  revalidatePath("/broker/bookings");
+  revalidatePath("/broker/calendar");
+  return { ok: true };
 }
 
 export async function saveTeamNote(id: unknown, note: unknown): Promise<Done | Fail> {

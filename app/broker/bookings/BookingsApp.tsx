@@ -18,10 +18,10 @@ import { useAccept, useBookings, useDeclineChange, type BookingsCtx } from "./us
 import { altInfo, datesText, download, nightsCount, payLabel, unitLabel } from "./view";
 import { BookingDetail } from "./BookingDetail";
 import { RequestPanel, hoursTo } from "./RequestPanel";
-import { DeclineDialog, NewBookingPanel, OfferDialog } from "./BookingDialogs";
+import { DeclineDialog, NewBookingPanel, OfferDialog, type NewPreset } from "./BookingDialogs";
 
 export type Dlg =
-  | { k: "new"; guestId?: string }
+  | { k: "new"; guestId?: string; preset?: NewPreset }
   | { k: "decline"; req: RequestView }
   | { k: "pay" }
   | { k: "move" }
@@ -50,7 +50,8 @@ export function BookingsApp({ lang, data: initial }: { lang: Lang; data: Booking
   const [dlg, setDlg] = useState<Dlg | null>(null);
 
   // Links from the Guests page and the phone "+" button: ?open=<booking>,
-  // ?new=1 (&guest=<id>).
+  // ?new=1 (&guest=<id>). From the Calendar: ?open=<booking>&edit=1 opens the
+  // edit panel, ?new=1&unit=<type>&ci=&co= starts a booking on free nights.
   useEffect(() => {
     const open = params.get("open");
     const nw = params.get("new");
@@ -58,10 +59,14 @@ export function BookingsApp({ lang, data: initial }: { lang: Lang; data: Booking
     if (open && data.bookings.some((b) => b.id === open)) {
       setTab("all");
       setOpenId(open);
+      if (params.get("edit") === "1") setDlg({ k: "edit" });
     }
-    if (nw) setDlg({ k: "new", guestId: params.get("guest") ?? undefined });
+    const unit = data.units.find((u) => u.id === params.get("unit"));
+    const iso = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "");
+    const preset = unit ? { propertyId: unit.propertyId, unitTypeId: unit.id, ci: iso(params.get("ci")), co: iso(params.get("co")) } : undefined;
+    if (nw) setDlg({ k: "new", guestId: params.get("guest") ?? undefined, preset });
     router.replace(path, { scroll: false });
-  }, [params, data.bookings, path, router]);
+  }, [params, data.bookings, data.units, path, router]);
 
   const guestById = useMemo(() => new Map(data.guests.map((g) => [g.id, g])), [data.guests]);
   const counts = useMemo(() => {
@@ -265,7 +270,7 @@ export function BookingsApp({ lang, data: initial }: { lang: Lang; data: Booking
 
       {open && <BookingDetail ctx={ctx} b={open} dlg={dlg} setDlg={setDlg} onClose={() => setOpenId(null)} onOpen={setOpenId} />}
       {req && <RequestPanel ctx={ctx} r={req} onClose={() => setReqId(null)} onDecline={() => setDlg({ k: "decline", req })} onOffer={() => setDlg({ k: "offer", req })} />}
-      {dlg?.k === "new" && <NewBookingPanel ctx={ctx} guestId={dlg.guestId} onClose={() => setDlg(null)} onSaved={(id) => {
+      {dlg?.k === "new" && <NewBookingPanel ctx={ctx} guestId={dlg.guestId} preset={dlg.preset} onClose={() => setDlg(null)} onSaved={(id) => {
             setDlg(null);
             setTab("all");
             setOpenId(id);

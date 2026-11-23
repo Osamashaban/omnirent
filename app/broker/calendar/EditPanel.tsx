@@ -12,7 +12,7 @@ import { Ban } from "@/components/broker/property-icons";
 import { ErrorAlert, Segmented, num, triOptions } from "./parts";
 import type { SelInfo } from "./CalendarApp";
 
-export type PanelForm = EditSpec & { reason: BlockReason };
+export type PanelForm = EditSpec & { reason: BlockReason; note: string };
 
 type Props = {
   t: CalendarDict;
@@ -99,7 +99,8 @@ export function EditPanel({
   onBlock,
   onReset,
   onClose,
-}: Props & { propertyName: (x: CalTypeView) => string; onBlock: () => void; onReset: () => void }) {
+  newBooking,
+}: Props & { propertyName: (x: CalTypeView) => string; onBlock: () => void; onReset: () => void; newBooking?: { href: string; label: string } | null }) {
   const { title, sub } = header(t, info, propertyName);
   const several = info.types.length > 1 || info.from !== info.to;
   const multiUnit = info.types.some((x) => x.count > 1);
@@ -236,6 +237,28 @@ export function EditPanel({
             </span>
             <span>{t.channelsNote}</span>
           </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="cal-note" className="text-[14px] font-medium">
+              {t.v90.noteLabel}
+            </label>
+            <textarea
+              id="cal-note"
+              value={form.note}
+              maxLength={500}
+              placeholder={t.v90.notePh}
+              onChange={(e) => set({ note: e.target.value })}
+              className="min-h-[60px] w-full resize-y rounded-lg border border-[#D1D5DB] bg-white px-3 py-2.5 text-[15px] text-[#111827] outline-none placeholder:text-[#9CA3AF] focus:border-[#639922] focus:ring-2 focus:ring-[#639922]/25"
+            />
+            <span className="text-[12px] text-[#6B7280]">{t.v90.noteHint}</span>
+          </div>
+          {newBooking && (
+            <a
+              href={newBooking.href}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border-[1.5px] border-[#639922] bg-white px-4 text-[14px] font-semibold text-[#3B6D11] no-underline hover:bg-[#F4F9EC]"
+            >
+              {newBooking.label}
+            </a>
+          )}
           <div className="flex flex-col gap-2.5 border-t border-[#E5E7EB] pt-3.5">
             <span className="text-[14px] font-semibold">{t.blockDates}</span>
             <span className="-mt-1.5 text-[13px] text-[#6B7280]">{t.blockHelp}</span>

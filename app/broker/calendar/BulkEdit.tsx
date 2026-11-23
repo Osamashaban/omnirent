@@ -17,6 +17,7 @@ import {
   checkBulk,
   daysBetween,
   lastEditable,
+  overrideKey,
   presets,
   type BulkSpec,
   type EditSpec,
@@ -54,6 +55,7 @@ export function BulkEdit({
   properties,
   types,
   overrides,
+  booked,
   busy,
   onClose,
   onSave,
@@ -64,6 +66,7 @@ export function BulkEdit({
   properties: CalProperty[];
   types: CalTypeView[];
   overrides: Map<string, Override>;
+  booked: Record<string, number>;
   busy: boolean;
   onClose: () => void;
   onSave: (input: BulkInput) => Promise<string | null>;
@@ -96,7 +99,8 @@ export function BulkEdit({
   const from = state.from <= state.to ? state.from : state.to;
   const to = state.from <= state.to ? state.to : state.from;
   const bulk: BulkSpec = { ...state.spec, typeIds: state.typeIds, from, to, confirm: state.confirm };
-  const preview = bulkPreview(types, overrides, bulk);
+  // Booked nights are skipped (design v88), like on the server.
+  const preview = bulkPreview(types, overrides, bulk, (id, date) => booked[overrideKey(id, date)] ?? 0);
   const chosen = types.filter((x) => state.typeIds.includes(x.id));
   const units = chosen.reduce((a, x) => a + x.count, 0);
   const propName = (id: string) => properties.find((p) => p.id === id)?.name ?? "";

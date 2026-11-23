@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { retryCalendar, saveCalendar, undoCalendar, type CalendarResult } from "@/app/actions/calendar";
+import { retryCalendar, saveCalendar, saveCalendarNote, undoCalendar, type CalendarResult } from "@/app/actions/calendar";
 import { moveToApartment } from "@/app/actions/bookings";
+import { clashWith, plusDays, segmentsOf, type Slot } from "@/lib/booking-rules";
 import type { CalBooking, CalendarData, CalTypeView } from "@/lib/calendar-data";
 import { CALENDAR_DICTS, type CalendarDict } from "@/lib/calendar-i18n";
 import type { Lang } from "@/lib/i18n";
@@ -16,6 +17,7 @@ import {
   addDays,
   barSpan,
   blankSpec,
+  checkQuickEdit,
   dateRange,
   lastEditable,
   linkedClosed,
@@ -34,7 +36,7 @@ import { smallPrimaryButtonClass } from "@/components/ops/ui";
 import { CalendarToast, Corners, SyncPill, gridLook, monthLook, num, plus, type SyncState, type ToastState } from "./parts";
 import { EditPanel, PhoneEditSheet, type PanelForm } from "./EditPanel";
 import { BulkEdit } from "./BulkEdit";
-import { BookingChip, BookingDetails, PlatformBadge, barStyle, barTitle } from "./bookings";
+import { BookingChip, BookingDetails, DatesDialog, PlatformBadge, barStyle, barTitle } from "./bookings";
 
 // A selection: a block of unit type rows (grid) or one unit type (month and
 // phone views), from one night to another.
@@ -110,10 +112,45 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
   const [openId, setOpenId] = useState<string | null>(focused?.id ?? null);
   const [moveErr, setMoveErr] = useState("");
   const [moving, setMoving] = useState(false);
-  const [barDrag, setBarDrag] = useState<{ id: string; typeId: string; apt: number; over: number } | null>(null);
+  // grab / day: the night under the pointer when the bar was picked up and
+  // now. A direct booking dropped on another night of its row changes dates
+  // (design v88).
+  const [barDrag, setBarDrag] = useState<{ id: string; typeId: string; apt: number; over: number; grab: string | null; day: string | null } | null>(null);
+  // The date change waiting for review ("Change dates" or a drag).
+  const [rd, setRd] = useState<{ id: string; arrival: string; departure: string } | null>(null);
   const barDragRef = useRef(barDrag);
   barDragRef.current = barDrag;
   const bookingById = useMemo(() => new Map(data.bookings.map((b) => [b.id, b])), [data.bookings]);
+  // Double bookings (design v88): same apartment, or the linked whole
+  // apartment and one of its rooms, on the same night.
+  const typeById = useMemo(() => new Map(types.map((x) => [x.id, x])), [types]);
+  const slotOf = useCallback(
+    (b: CalBooking): Slot => ({
+      id: b.id,
+      unitTypeId: b.unitTypeId,
+      apt: b.apt,
+      arrival: b.arrival,
+      departure: b.departure,
+      cancelled: false,
+      propertyId: b.propertyId,
+      link: typeById.get(b.unitTypeId)?.link ?? null,
+      splitAt: b.splitAt,
+      splitApt: b.splitApt,
+    }),
+    [typeById],
+  );
+  const clashOf = useMemo(() => {
+    const slots = data.bookings.map(slotOf);
+    const out = new Map<string, CalBooking>();
+    for (const b of data.bookings) {
+      if (b.departure <= today) continue;
+      const hit = clashWith(slotOf(b), slots.filter((x) => x.departure > today));
+      const other = hit && bookingById.get(hit.id);
+      if (other) out.set(b.id, other);
+    }
+    return out;
+  }, [data.bookings, slotOf, bookingById, today]);
+  const notes = data.notes;
   const dim = (b: CalBooking) => chf !== "all" && chf !== b.platform;
   const bookingsOn = useCallback(
     (typeId: string, date: string) => data.bookings.filter((b) => b.unitTypeId === typeId && b.arrival <= date && date < b.departure),
@@ -126,11 +163,11 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
   // a quick click (down and up before a re-render) still opens the panel.
   const drag = useRef<Sel | null>(null);
   const [panel, setPanel] = useState(false);
-  const [form, setForm] = useState<PanelForm>({ ...blankSpec(), reason: "owner" });
+  const [form, setForm] = useState<PanelForm>({ ...blankSpec(), reason: "owner", note: "" });
   const [pErr, setPErr] = useState("");
   // What a single night's panel opened with. Values left as they were aren't
   // saved, so the night keeps following the unit type's own price and min stay.
-  const [prefill, setPrefill] = useState({ value: "", min: "" });
+  const [prefill, setPrefill] = useState({ value: "", min: "", note: "" });
   const [bulk, setBulk] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sending, setSending] = useState(0);
@@ -163,23 +200,34 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
     [mType, editRows],
   );
   const si = selInfo(sel);
+  // "New direct booking" from the panel (design v88): one unit type with an
+  // apartment free on every chosen night.
+  const newBooking = (() => {
+    if (!si || si.types.length !== 1) return null;
+    const type = si.types[0];
+    if (!dateRange(si.from, si.to).every((d) => night(type, d).left > 0)) return null;
+    const co = plusDays(si.to, 1);
+    const q = new URLSearchParams({ new: "1", unit: type.id, ci: si.from, co });
+    return { href: `/broker/bookings?${q}`, label: t.v90.newBooking(t.day(si.from), t.day(co)) };
+  })();
 
   const openPanel = useCallback(
     (s: Sel | null) => {
       const info = selInfo(s);
       if (!info || !info.types.length) return;
-      const next: PanelForm = { ...blankSpec(), reason: "owner" };
+      const next: PanelForm = { ...blankSpec(), reason: "owner", note: "" };
       if (info.types.length === 1 && info.from === info.to) {
         const n = night(info.types[0], info.from);
         next.value = String(n.price);
         next.min = String(n.minStay);
+        next.note = notes[overrideKey(info.types[0].id, info.from)] ?? "";
       }
       setForm(next);
-      setPrefill({ value: next.value, min: next.min });
+      setPrefill({ value: next.value, min: next.min, note: next.note });
       setPErr("");
       setPanel(true);
     },
-    [selInfo, night],
+    [selInfo, night, notes],
   );
 
   // Finishing a drag anywhere on the page opens the side panel.
@@ -255,18 +303,40 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
   // plain click) opens the booking.
   const moveRef = useRef(moveTo);
   moveRef.current = moveTo;
+  const datesRef = useRef<(id: string, shift: number) => void>(() => undefined);
+  datesRef.current = (id, shift) => {
+    const b = bookingById.get(id);
+    if (!b) return;
+    if (!b.editable) return say(t.v90.platformDates, true);
+    setOpenId(null);
+    setRd({ id, arrival: plusDays(b.arrival, shift), departure: plusDays(b.departure, shift) });
+  };
   useEffect(() => {
+    // The night (and apartment row) under the pointer while a bar is dragged.
+    const move = (e: MouseEvent) => {
+      const g = barDragRef.current;
+      if (!g) return;
+      const cell = document.elementsFromPoint(e.clientX, e.clientY).find((el) => el instanceof HTMLElement && el.dataset.day && el.dataset.type === g.typeId) as HTMLElement | undefined;
+      const day = cell?.dataset.day ?? null;
+      if (day && day !== g.day) setBarDrag({ ...g, day, grab: g.grab ?? day });
+    };
     const up = () => {
       const g = barDragRef.current;
       if (!g) return;
       setBarDrag(null);
-      if (g.over === g.apt) {
+      const shift = g.grab && g.day ? Math.round((Date.parse(g.day) - Date.parse(g.grab)) / 86_400_000) : 0;
+      if (g.over === g.apt && shift !== 0) datesRef.current(g.id, shift);
+      else if (g.over === g.apt) {
         setMoveErr("");
         setOpenId(g.id);
       } else void moveRef.current(g.id, g.over, false);
     };
+    window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);
-    return () => window.removeEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
   }, []);
 
   useEffect(() => {
@@ -306,8 +376,36 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
     [t],
   );
 
+  // A changed note is saved on its own (it isn't sent to the platforms); a
+  // save that only changes the note doesn't touch prices or rules.
+  async function saveNote(): Promise<{ ok: true; done: number; types: number } | { ok: false }> {
+    if (!si) return { ok: false };
+    setBusy(true);
+    try {
+      const r = await saveCalendarNote({ typeIds: si.types.map((x) => x.id), from: si.from, to: si.to, days: form.days, text: form.note });
+      if (!r.ok && r.error === "signedOut") window.location.reload();
+      return r.ok ? r : { ok: false };
+    } catch {
+      return { ok: false };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function runPanel(action: "edit" | "block" | "reset", spec: EditSpec, reason?: BlockReason) {
     if (!si || busy) return;
+    if (action === "edit" && form.note !== prefill.note) {
+      const onlyNote = checkQuickEdit(spec) === "nothing";
+      const n = await saveNote();
+      if (!n.ok) return setPErr(t.failed);
+      setPrefill((p) => ({ ...p, note: form.note }));
+      if (onlyNote) {
+        closeAll();
+        say(t.updated(t.nights(n.done), t.unitTypes(n.types)));
+        refresh();
+        return;
+      }
+    }
     const r = await send({ action, typeIds: si.types.map((x) => x.id), from: si.from, to: si.to, spec, reason });
     if (!r.ok) {
       setPErr(errorText(r));
@@ -324,7 +422,8 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
     refresh();
   }
 
-  const { reason, ...spec } = form;
+  const { reason, note: _note, ...spec } = form;
+  void _note;
   const saveEdit = (s: EditSpec = spec) =>
     runPanel("edit", {
       ...s,
@@ -403,27 +502,41 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
 
   // The booking bars of one apartment row (or the unit type's own row when it
   // has a single apartment).
+  // The bars on one apartment's row: each booking, or each part of a split
+  // stay, in that apartment.
   const bars = (type: CalTypeView, apt: number) =>
     data.bookings
-      .filter((b) => b.unitTypeId === type.id && b.apt === apt)
-      .map((b) => {
-        const at = barSpan(b, start, GRID_SPAN);
+      .filter((b) => b.unitTypeId === type.id)
+      .flatMap((b) => segmentsOf(slotOf(b)).map((sg, part) => ({ b, sg, part })))
+      .filter(({ sg }) => sg.apt === apt)
+      .map(({ b, sg, part }) => {
+        const dragging = barDrag?.id === b.id;
+        // A direct booking dragged along its row shows where it would go.
+        const shift = dragging && b.editable && barDrag.over === barDrag.apt && barDrag.grab && barDrag.day ? Math.round((Date.parse(barDrag.day) - Date.parse(barDrag.grab)) / 86_400_000) : 0;
+        const at = barSpan({ arrival: plusDays(sg.arrival, shift), departure: plusDays(sg.departure, shift) }, start, GRID_SPAN);
         if (!at) return null;
         const r0 = at.cutStart ? "0" : "6px";
         const r1 = at.cutEnd ? "0" : "6px";
-        const dragging = barDrag?.id === b.id;
+        const other = clashOf.get(b.id);
+        // Two clashing bars on the same row share it, one above the other.
+        const sameRow = other && other.unitTypeId === b.unitTypeId && segmentsOf(slotOf(other)).some((x) => x.apt === apt && x.arrival < sg.departure && sg.arrival < x.departure);
+        const lower = sameRow && (b.arrival > other.arrival || (b.arrival === other.arrival && b.id > other.id));
+        const title = (other ? t.v90.doublePrefix : "") + barTitle(t, b, today);
+        const grab = (b.movable && type.count > 1) || b.editable;
         return (
           <div
-            key={b.id}
+            key={`${b.id}-${part}`}
             role="button"
             tabIndex={0}
-            title={barTitle(t, b, today)}
-            aria-label={barTitle(t, b, today)}
+            title={title}
+            aria-label={title}
             onMouseDown={(e) => {
               if (e.button !== 0) return;
               e.stopPropagation();
               setSel(null);
-              setBarDrag({ id: b.id, typeId: type.id, apt: b.apt, over: b.apt });
+              const cell = document.elementsFromPoint(e.clientX, e.clientY).find((el) => el instanceof HTMLElement && el.dataset.day && el.dataset.type === type.id) as HTMLElement | undefined;
+              const day = cell?.dataset.day ?? null;
+              setBarDrag({ id: b.id, typeId: type.id, apt, over: apt, grab: day, day });
             }}
             onKeyDown={(e) => {
               if (e.key !== "Enter" && e.key !== " ") return;
@@ -431,9 +544,9 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
               setMoveErr("");
               setOpenId(b.id);
             }}
-            className={`absolute top-[5px] bottom-[5px] z-[2] box-border flex items-center gap-1.5 overflow-hidden whitespace-nowrap px-2 text-[12px] font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.15)] outline-none focus-visible:shadow-[0_0_0_2px_#111827] ${
-              b.movable && type.count > 1 ? "cursor-grab" : "cursor-pointer"
-            }`}
+            className={`absolute z-[2] box-border flex items-center gap-1.5 overflow-hidden whitespace-nowrap px-2 text-[12px] font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.15)] outline-none focus-visible:shadow-[0_0_0_2px_#111827] ${
+              sameRow ? (lower ? "top-1/2 bottom-[3px]" : "top-[3px] bottom-1/2") : "top-[5px] bottom-[5px]"
+            } ${grab ? "cursor-grab" : "cursor-pointer"}`}
             style={{
               insetInlineStart: NAME_W + at.col * CELL_W + 3,
               width: at.len * CELL_W - 6,
@@ -442,16 +555,18 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
               borderStartEndRadius: r1,
               borderEndEndRadius: r1,
               ...barStyle(b, today, dim(b)),
+              ...(other ? { outline: "2px solid #DC2626", outlineOffset: -2 } : {}),
               ...(dragging ? { opacity: 0.55, outline: "2px dashed #111827" } : {}),
             }}
           >
-            {b.movable && type.count > 1 && (
+            {grab && (
               <span aria-hidden="true" className="flex opacity-80">
                 <Grip />
               </span>
             )}
             <PlatformBadge b={b} />
             <span className="truncate">
+              {other ? "! " : ""}
               <bdi>{b.guest}</bdi> · {t.nights(daysBetweenIso(b.arrival, b.departure))}
             </span>
           </div>
@@ -646,7 +761,9 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
                                     role="button"
                                     tabIndex={0}
                                     aria-pressed={inSel}
-                                    title={look.title}
+                                    title={notes[overrideKey(type.id, d)] ? `${look.title}\n${t.v90.notePrefix}${notes[overrideKey(type.id, d)]}` : look.title}
+                                    data-day={d}
+                                    data-type={type.id}
                                     onMouseDown={(e) => {
                                       if (e.button !== 0) return;
                                       drag.current = { month: false, r0: row, r1: row, d0: d, d1: d };
@@ -670,6 +787,7 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
                                     }`}
                                   >
                                     <Corners cta={n.cta} ctd={n.ctd} />
+                                    {notes[overrideKey(type.id, d)] && <NoteDot />}
                                     <span className={`text-[12px] font-semibold tabular-nums ${look.topClass}`}>{look.top}</span>
                                     <span className={`max-w-full truncate text-[11px] font-semibold ${look.subClass}`}>{look.sub}</span>
                                   </div>
@@ -708,6 +826,8 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
                                       return (
                                         <div
                                           key={d}
+                                          data-day={d}
+                                          data-type={type.id}
                                           className="h-9 flex-[0_0_62px] border-s border-[#F3F4F6]"
                                           style={{ background: tint ?? (w === 5 || w === 6 ? "#FAFAF9" : "#FFFFFF") }}
                                         />
@@ -753,7 +873,12 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
                     role={past ? undefined : "button"}
                     tabIndex={past ? undefined : 0}
                     aria-pressed={past ? undefined : inSel}
-                    title={past ? undefined : `${t.day(d)} · ${money(n.price, mType)} · ${t.minStayN(n.minStay)}`}
+                    title={
+                      past
+                        ? undefined
+                        : `${t.day(d)} · ${money(n.price, mType)} · ${t.minStayN(n.minStay)}` +
+                          (notes[overrideKey(mType.id, d)] ? `\n${t.v90.notePrefix}${notes[overrideKey(mType.id, d)]}` : "")
+                    }
                     onMouseDown={(e) => {
                       if (past || e.button !== 0) return;
                       drag.current = { month: true, r0: 0, r1: 0, d0: d, d1: d };
@@ -777,6 +902,7 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
                     } ${inSel ? "shadow-[inset_0_0_0_2px_#639922]" : ""}`}
                   >
                     {!past && <Corners cta={n.cta} ctd={n.ctd} size={12} />}
+                    {!past && notes[overrideKey(mType.id, d)] && <NoteDot />}
                     <div className="flex items-center justify-between">
                       <span
                         className={`flex h-[26px] w-[26px] items-center justify-center rounded-full text-[14px] font-bold ${
@@ -887,6 +1013,7 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
             onSave={() => saveEdit()}
             onBlock={doBlock}
             onReset={doReset}
+            newBooking={newBooking}
             onClose={closeAll}
           />
           <PhoneEditSheet
@@ -915,6 +1042,7 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
           properties={properties}
           types={types}
           overrides={overrides}
+          booked={booked}
           busy={busy}
           onClose={() => setBulk(false)}
           onSave={async (input) => {
@@ -946,6 +1074,38 @@ export function CalendarApp({ lang, data, focus = null }: { lang: Lang; data: Ca
               error={moveErr}
               onMove={(apt) => void moveTo(b.id, apt, true)}
               onClose={() => setOpenId(null)}
+              clash={clashOf.get(b.id) ?? null}
+              onChangeDates={() => {
+                setOpenId(null);
+                setRd({ id: b.id, arrival: b.arrival, departure: b.departure });
+              }}
+            />
+          );
+        })()}
+
+      {rd &&
+        (() => {
+          const b = bookingById.get(rd.id);
+          const type = b && typeById.get(b.unitTypeId);
+          if (!b || !type) return null;
+          return (
+            <DatesDialog
+              key={`${rd.id}:${rd.arrival}:${rd.departure}`}
+              t={t}
+              lang={lang}
+              b={b}
+              initial={rd}
+              priceOf={(a, z) => {
+                let sum = 0;
+                for (let d = a; d < z; d = plusDays(d, 1)) sum += night(type, d).price;
+                return sum;
+              }}
+              onClose={() => setRd(null)}
+              onDone={() => {
+                setRd(null);
+                say(t.v90.datesChanged(b.guest));
+                refresh();
+              }}
             />
           );
         })()}
@@ -1018,8 +1178,21 @@ function Legend({ t }: { t: CalendarDict }) {
         <b dir="ltr" className="text-[#111827]">3+</b>
         {t.minStayLegend}
       </span>
+      <span className="flex items-center gap-1.5">
+        <span className="h-2 w-2 rounded-full bg-[#F59E0B]" />
+        {t.v90.noteLegend}
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="h-2.5 w-3.5 rounded-[3px] bg-[#3B6D11]" style={{ outline: "2px solid #DC2626", outlineOffset: -2 }} />
+        {t.v90.doubleLegend}
+      </span>
     </div>
   );
+}
+
+// A team note on the day (design v88).
+function NoteDot() {
+  return <span aria-hidden="true" className="absolute bottom-1 start-[5px] h-1.5 w-1.5 rounded-full bg-[#F59E0B]" />;
 }
 
 // ---------------------------------------------------------------------------

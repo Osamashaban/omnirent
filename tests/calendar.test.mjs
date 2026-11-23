@@ -198,6 +198,11 @@ test("bulk preview counts nights, prices below the minimum and shows one example
   assert.equal(low.examples.every((e) => e.below), true);
   // Only the chosen types count.
   assert.equal(bulkPreview([chalet, studio], new Map(), bulk({ typeIds: ["t2"], value: "10" })).nights, 7);
+  // Design v88: fully booked nights are skipped and counted.
+  const full = (typeId, date) => (typeId === "t1" && date === "2026-10-22" ? 4 : 0);
+  const sk = bulkPreview([chalet, studio], new Map(), bulk({ value: "10" }), full);
+  assert.equal(sk.nights, 13);
+  assert.equal(sk.skipped, 1);
 });
 
 test("bulk checks run in the design's order, and big changes need a confirm", () => {
@@ -393,7 +398,9 @@ test("bookings are drawn on the calendar and moved through the checked action", 
   assert.match(load, /status: \{ not: "cancelled" \}/, "cancelled bookings never show");
   assert.match(load, /\bbookings,/);
   const app = readFileSync(new URL("../app/broker/calendar/CalendarApp.tsx", import.meta.url), "utf8");
-  assert.match(app, /barSpan\(b, start, GRID_SPAN\)/, "bars sit on the grid's nights");
+  // Each part of a split stay (design v88) is its own bar, shifted while a
+  // direct booking is dragged.
+  assert.match(app, /barSpan\(\{ arrival: plusDays\(sg\.arrival, shift\), departure: plusDays\(sg\.departure, shift\) \}, start, GRID_SPAN\)/, "bars sit on the grid's nights");
   assert.match(app, /await moveToApartment\(id, apt\)/, "moves go through the Bookings action");
   const page = readFileSync(new URL("../app/broker/calendar/page.tsx", import.meta.url), "utf8");
   assert.match(page, /focus=\{focus\}/, "In Calendar opens the booking");
@@ -421,4 +428,17 @@ test("linked closures are sent to the channels", async () => {
   const bk = readFileSync(new URL("../lib/booking-data.ts", import.meta.url), "utf8");
   const after = bk.slice(bk.indexOf("export async function afterRevision"), bk.indexOf("\n}\n", bk.indexOf("export async function afterRevision")));
   assert.match(after, /rentMode: "BOTH"[\s\S]*pushNights\(b\.propertyId/, "a platform booking on a linked property pushes the nights");
+});
+
+// Design v88: team notes on days and the calendar's checks of the signed-in
+// broker.
+test("v90 day notes are saved only on this broker's own unit types and never sent to platforms", () => {
+  const data = readFileSync(new URL("../lib/calendar-data.ts", import.meta.url), "utf8");
+  const save = data.slice(data.indexOf("export async function saveNotes"), data.indexOf("\n}\n", data.indexOf("export async function saveNotes")));
+  assert.match(save, /property: \{ brokerId \}/, "only the broker's own types");
+  assert.doesNotMatch(save, /sendChange|pushNights|channex/i, "notes stay in OmniRent");
+  const act = readFileSync(new URL("../app/actions/calendar.ts", import.meta.url), "utf8");
+  const note = act.slice(act.indexOf("export async function saveCalendarNote"));
+  assert.match(note, /getCurrentBroker\(\)/);
+  assert.match(note, /text\.length > 500/);
 });
