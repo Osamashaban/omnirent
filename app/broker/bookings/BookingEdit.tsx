@@ -215,9 +215,11 @@ export function EditPanel({ ctx, b, onClose }: { ctx: BookingsCtx; b: BookingVie
           <input id="ech" type="number" inputMode="numeric" min={0} value={f.children} onChange={(e) => set({ children: e.target.value })} className={select()} />
         </Field>
       </div>
-      <Field id="erate" label={v.rate(curLabel)} error={errs.erate}>
-        <input id="erate" type="number" inputMode="decimal" dir="ltr" min={0} placeholder={ratePh} value={f.rate} onChange={(e) => set({ rate: e.target.value })} className={`${select(Boolean(errs.erate))} text-start`} />
-      </Field>
+      <div className="flex gap-3">
+        <Field id="erate" label={v.rate(curLabel)} error={errs.erate}>
+          <input id="erate" type="number" inputMode="decimal" dir="ltr" min={0} placeholder={ratePh} value={f.rate} onChange={(e) => set({ rate: e.target.value })} className={`${select(Boolean(errs.erate))} text-start`} />
+        </Field>
+      </div>
       <span className="-mt-1.5 text-[12px] text-[#6B7280]">{v.rateHint}</span>
       {count > 1 && (
         <div className="flex flex-col gap-2.5">

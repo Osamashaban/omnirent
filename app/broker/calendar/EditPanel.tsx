@@ -254,7 +254,7 @@ export function EditPanel({
           {newBooking && (
             <a
               href={newBooking.href}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border-[1.5px] border-[#639922] bg-white px-4 text-[14px] font-semibold text-[#3B6D11] no-underline hover:bg-[#F4F9EC]"
+              className="inline-flex h-11 flex-none items-center justify-center gap-2 rounded-lg border-[1.5px] border-[#639922] bg-white px-4 text-[14px] font-semibold text-[#3B6D11] no-underline hover:bg-[#F4F9EC]"
             >
               {newBooking.label}
             </a>
