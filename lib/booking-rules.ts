@@ -127,28 +127,64 @@ export function dueOf(b: { total: number; paid: number }): number {
 // ---------------------------------------------------------------------------
 // Apartments and double bookings
 
-export type Slot = { id: string; unitTypeId: string | null; apt: number; arrival: string; departure: string; cancelled: boolean };
+export type Slot = {
+  id: string;
+  unitTypeId: string | null;
+  apt: number;
+  arrival: string;
+  departure: string;
+  cancelled: boolean;
+  // Design v88: a whole apartment and its own rooms ("Both" mode) can't be
+  // sold on the same night. `link` says which one this unit type is.
+  propertyId?: string | null;
+  link?: "whole" | "room" | null;
+  // A stay split across two identical apartments: from splitAt the guest is
+  // in apartment splitApt.
+  splitAt?: string | null;
+  splitApt?: number | null;
+};
 
-// Bookings that share a night in the same apartment (two platforms sold it
-// before the update reached them). Checked-out stays don't count.
+// The apartment a booking is in on each part of its stay (two parts when the
+// stay is split).
+export function segmentsOf<T extends Slot>(b: T): T[] {
+  if (!b.splitAt || !b.splitApt || b.splitAt <= b.arrival || b.splitAt >= b.departure) return [b];
+  return [
+    { ...b, departure: b.splitAt, splitAt: null, splitApt: null },
+    { ...b, arrival: b.splitAt, apt: b.splitApt, splitAt: null, splitApt: null },
+  ];
+}
+
+// Two bookings that can't both happen: same apartment on the same night, or
+// the whole apartment and one of its rooms on the same night.
+export function clashes(a: Slot, b: Slot): boolean {
+  if (a.id === b.id || a.cancelled || b.cancelled || !a.unitTypeId || !b.unitTypeId) return false;
+  for (const x of segmentsOf(a))
+    for (const y of segmentsOf(b)) {
+      if (!overlaps(x, y)) continue;
+      if (x.unitTypeId === y.unitTypeId && x.apt === y.apt) return true;
+      if (x.unitTypeId !== y.unitTypeId && x.propertyId && x.propertyId === y.propertyId && x.link && y.link && x.link !== y.link) return true;
+    }
+  return false;
+}
+
+// Bookings that clash with another (two platforms sold the same night before
+// the update reached them). Checked-out stays don't count.
 export function doubleBooked(list: Slot[], today: string): Set<string> {
   const out = new Set<string>();
   const live = list.filter((b) => !b.cancelled && b.unitTypeId && b.departure > today);
   for (let i = 0; i < live.length; i++)
     for (let j = i + 1; j < live.length; j++) {
-      const a = live[i];
-      const b = live[j];
-      if (a.unitTypeId === b.unitTypeId && a.apt === b.apt && overlaps(a, b)) {
-        out.add(a.id);
-        out.add(b.id);
+      if (clashes(live[i], live[j])) {
+        out.add(live[i].id);
+        out.add(live[j].id);
       }
     }
   return out;
 }
 
-// The other booking in the same apartment on the same nights.
+// The other booking this one clashes with.
 export function clashWith<T extends Slot>(b: T, list: T[]): T | undefined {
-  return list.find((x) => x.id !== b.id && !x.cancelled && x.unitTypeId === b.unitTypeId && x.apt === b.apt && overlaps(x, b));
+  return list.find((x) => clashes(b, x));
 }
 
 // Which of the unit type's identical apartments (1..count) is busy on any of
@@ -162,7 +198,7 @@ export function aptStatus<T extends Slot>(
 ): { apt: number; busy: T | undefined }[] {
   return Array.from({ length: Math.max(1, count) }, (_, i) => {
     const apt = i + 1;
-    const busy = list.find((x) => x.id !== excludeId && !x.cancelled && x.unitTypeId === unitTypeId && x.apt === apt && overlaps(x, range));
+    const busy = list.find((x) => x.id !== excludeId && !x.cancelled && segmentsOf(x).some((sg) => sg.unitTypeId === unitTypeId && sg.apt === apt && overlaps(sg, range)));
     return { apt, busy };
   });
 }
