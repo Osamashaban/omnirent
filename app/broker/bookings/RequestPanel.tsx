@@ -91,6 +91,7 @@ export function RequestPanel({ ctx, r, onClose, onDecline, onOffer }: { ctx: Boo
         <div className="flex flex-col">
           <span className="text-[17px] font-bold">{r.guest}</span>
           <span className="text-[13px] text-[#6B7280]">
+            {alt?.b.code ? <span dir="ltr">{alt.b.code} · </span> : null}
             {r.country ? `${r.country} · ` : ""}
             {t.guestsN(r.adults, r.children)}
           </span>

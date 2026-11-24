@@ -202,6 +202,7 @@ export function NewBookingPanel({
       closeLabel={t.close}
       backLabel={t.back}
       z={50}
+      phoneForm
       head={
         <div className="flex flex-1 flex-col gap-1">
           <h2 className="m-0 text-[21px] font-bold">{t.newTitle}</h2>

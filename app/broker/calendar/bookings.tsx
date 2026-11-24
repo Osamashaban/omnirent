@@ -401,9 +401,10 @@ export function DatesDialog({
         aria-modal="true"
         aria-label={v.rdLabel}
         onClick={(e) => e.stopPropagation()}
-        className="flex w-[480px] max-w-full flex-col gap-4 rounded-2xl bg-white p-6 shadow-[0_20px_50px_rgba(0,0,0,0.25)]"
+        className="flex w-[480px] max-w-full flex-col rounded-2xl bg-white shadow-[0_20px_50px_rgba(0,0,0,0.25)]"
       >
-        <h2 className="m-0 text-[20px] font-bold">{v.rdTitle(b.guest)}</h2>
+        <h2 className="m-0 border-b border-[#E5E7EB] px-5 py-4 text-[18px] font-bold">{v.rdTitle(b.guest)}</h2>
+        <div className="flex flex-col gap-3.5 px-5 py-4">
         <div className="flex gap-3">
           <div className="flex flex-1 flex-col gap-1.5">
             <label htmlFor="rd_ci" className="text-[14px] font-medium">
@@ -429,9 +430,14 @@ export function DatesDialog({
           </span>
           {diff !== 0 && <span className="font-semibold text-[#B45309]">{diff > 0 ? v.diffMore(money(diff)) : v.diffLess(money(-diff))}</span>}
         </div>
-        {err && <ErrorAlert>{err}</ErrorAlert>}
-        <span className="text-[13px] leading-[1.6] text-[#6B7280]">{v.rdHint}</span>
-        <div className="flex gap-3">
+        {err && (
+          <span role="alert" className="text-[13px] text-[#B91C1C]">
+            {err}
+          </span>
+        )}
+        <span className="text-[12px] leading-[1.5] text-[#6B7280]">{v.rdHint}</span>
+        </div>
+        <div className="flex gap-2.5 border-t border-[#E5E7EB] px-5 py-4">
           <button
             type="button"
             disabled={busy}

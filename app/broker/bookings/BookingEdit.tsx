@@ -153,6 +153,7 @@ export function EditPanel({ ctx, b, onClose }: { ctx: BookingsCtx; b: BookingVie
       closeLabel={t.close}
       backLabel={t.back}
       z={50}
+      phoneForm
       head={
         <div className="flex flex-1 flex-col gap-1">
           <h2 className="m-0 text-[21px] font-bold">{v.editTitle}</h2>
