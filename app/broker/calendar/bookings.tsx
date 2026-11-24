@@ -11,7 +11,11 @@ import { BAR_COLORS, barState, daysBetween, weekday } from "@/lib/calendar-rules
 import { aptStatus } from "@/lib/booking-rules";
 import { formatMoney } from "@/lib/property-rules";
 import type { Lang } from "@/lib/i18n";
+import { useState } from "react";
 import { Info, X } from "@/components/ops/icons";
+import { Calendar } from "@/components/broker/booking-icons";
+import { changeBookingDates } from "@/app/actions/bookings";
+import type { EditError } from "@/lib/booking-rules";
 import { ErrorAlert } from "./parts";
 
 // The platform's initials on its own colour, outlined in white.
@@ -105,7 +109,11 @@ export function BookingDetails({
   error,
   onMove,
   onClose,
+  clash,
+  onChangeDates,
 }: {
+  clash?: CalBooking | null;
+  onChangeDates?: () => void;
   t: CalendarDict;
   lang: Lang;
   b: CalBooking;
@@ -213,7 +221,33 @@ export function BookingDetails({
           {head(false)}
           <div className="flex flex-1 flex-col gap-4 overflow-auto px-6 py-5">
             {error && <ErrorAlert>{error}</ErrorAlert>}
+            {clash && (
+              <div role="alert" className="flex flex-col gap-2 rounded-lg border border-[#FCA5A5] bg-[#FEF2F2] px-3.5 py-3 text-[13px] leading-[1.6] text-[#991B1B]">
+                <span>{t.v90.clashTxt(clash.guest, clash.platformName, t.day(clash.arrival), t.day(clash.departure))}</span>
+                <a href={`/broker/bookings?open=${encodeURIComponent(b.id)}`} className="self-start font-semibold text-[#991B1B] underline">
+                  {t.v90.openReservations}
+                </a>
+              </div>
+            )}
             {factList(false)}
+            {b.editable && onChangeDates && (
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={onChangeDates}
+                    className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-0 bg-[#639922] px-4 text-[14px] font-semibold text-white hover:bg-[#4E8F20]"
+                  >
+                    <Calendar />
+                    {t.v90.changeDates}
+                  </button>
+                  <a href={`/broker/bookings?open=${encodeURIComponent(b.id)}&edit=1`} className="text-[14px] font-semibold text-[#3B6D11]">
+                    {t.v90.fullEdit}
+                  </a>
+                </div>
+                <span className="text-[13px] text-[#6B7280]">{t.v90.dragHint}</span>
+              </div>
+            )}
             {picker && (
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="cal_unit" className="text-[14px] font-medium">
@@ -296,5 +330,133 @@ export function BookingDetails({
         </section>
       </div>
     </>
+  );
+}
+
+// Changing a direct booking's dates from the Calendar (design v88): the
+// "Change dates" button or a bar dragged along its row. The server checks the
+// new nights again and closes / reopens them on every platform.
+export function DatesDialog({
+  t,
+  lang,
+  b,
+  initial,
+  priceOf,
+  onClose,
+  onDone,
+}: {
+  t: CalendarDict;
+  lang: Lang;
+  b: CalBooking;
+  initial: { arrival: string; departure: string };
+  priceOf: (arrival: string, departure: string) => number | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const v = t.v90;
+  const [ci, setCi] = useState(initial.arrival);
+  const [co, setCo] = useState(initial.departure);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const money = (n: number) => formatMoney(n, b.currency, lang);
+  const nights = ci && co && co > ci ? daysBetween(ci, co) : 0;
+  // Same dates as now: nothing is repriced (the server keeps the booking's total).
+  const same = ci === b.arrival && co === b.departure;
+  const after = !nights ? null : same ? b.total : b.rate ? b.rate * nights : priceOf(ci, co);
+  const diff = after === null ? 0 : Math.round(after - b.total);
+
+  const text = (e: EditError) => {
+    switch (e.code) {
+      case "badDates":
+        return v.errCheckout;
+      case "pastMove":
+        return v.errPast;
+      case "taken":
+        return v.errTaken(e.guest, t.day(e.from), t.day(e.to));
+      case "nothing":
+        return v.errNothing;
+      case "splitDay":
+      case "splitApt":
+      case "splitTaken":
+        return v.errSplit;
+      default:
+        return t.failed;
+    }
+  };
+
+  const save = async () => {
+    if (!nights) return setErr(v.errCheckout);
+    setBusy(true);
+    setErr("");
+    const r = await changeBookingDates(b.id, ci, co).catch(() => ({ ok: false as const, error: "failed" as const }));
+    setBusy(false);
+    if (r.ok) return onDone();
+    if ("errors" in r) return setErr(text(r.errors[0]));
+    if (r.error === "signedOut") return window.location.reload();
+    setErr(t.failed);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-start justify-center bg-[rgba(17,24,39,0.45)] px-4 pt-[160px] max-[899px]:pt-16" onClick={onClose}>
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label={v.rdLabel}
+        onClick={(e) => e.stopPropagation()}
+        className="flex w-[480px] max-w-full flex-col rounded-2xl bg-white shadow-[0_20px_50px_rgba(0,0,0,0.25)]"
+      >
+        <h2 className="m-0 border-b border-[#E5E7EB] px-5 py-4 text-[18px] font-bold">{v.rdTitle(b.guest)}</h2>
+        <div className="flex flex-col gap-3.5 px-5 py-4">
+        <div className="flex gap-3">
+          <div className="flex flex-1 flex-col gap-1.5">
+            <label htmlFor="rd_ci" className="text-[14px] font-medium">
+              {v.checkIn}
+            </label>
+            <input id="rd_ci" type="date" dir="ltr" value={ci} onChange={(e) => setCi(e.target.value)} className={`${field} text-start`} />
+          </div>
+          <div className="flex flex-1 flex-col gap-1.5">
+            <label htmlFor="rd_co" className="text-[14px] font-medium">
+              {v.checkOut}
+            </label>
+            <input id="rd_co" type="date" dir="ltr" min={ci || undefined} value={co} onChange={(e) => setCo(e.target.value)} className={`${field} text-start`} />
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5 rounded-[10px] border border-[#E5E7EB] bg-[#F9FAFB] px-3.5 py-3 text-[14px]">
+          <span>
+            <span className="text-[#6B7280]">{v.before}</span>{" "}
+            {v.stay(t.day(b.arrival), t.day(b.departure), t.nights(daysBetween(b.arrival, b.departure)), money(b.total))}
+          </span>
+          <span>
+            <span className="text-[#6B7280]">{v.after}</span>{" "}
+            <b>{nights ? v.stay(t.day(ci), t.day(co), t.nights(nights), after === null ? "-" : money(after)) : "-"}</b>
+          </span>
+          {diff !== 0 && <span className="font-semibold text-[#B45309]">{diff > 0 ? v.diffMore(money(diff)) : v.diffLess(money(-diff))}</span>}
+        </div>
+        {err && (
+          <span role="alert" className="text-[13px] text-[#B91C1C]">
+            {err}
+          </span>
+        )}
+        <span className="text-[12px] leading-[1.5] text-[#6B7280]">{v.rdHint}</span>
+        </div>
+        <div className="flex gap-2.5 border-t border-[#E5E7EB] px-5 py-4">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={save}
+            className="inline-flex h-11 flex-1 cursor-pointer items-center justify-center rounded-lg border-0 bg-[#639922] px-[18px] text-[15px] font-semibold text-white hover:bg-[#4E8F20] disabled:opacity-70"
+          >
+            {v.rdSave}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 cursor-pointer items-center justify-center rounded-lg border border-[#D1D5DB] bg-white px-[18px] text-[15px] font-semibold text-[#111827] hover:bg-[#F9FAFB]"
+          >
+            {v.cancel}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }

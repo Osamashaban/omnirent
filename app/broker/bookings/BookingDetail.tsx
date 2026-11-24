@@ -7,15 +7,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { BookingView } from "@/lib/booking-data";
-import { canCancel, canMove, canReport, dueOf, telLink, waLink } from "@/lib/booking-rules";
+import { canCancel, canEdit, canMove, canReport, dueOf, telLink, waLink } from "@/lib/booking-rules";
 import { countryName, type BookingDict } from "@/lib/booking-i18n";
 import { confirmDirect, saveTeamNote } from "@/app/actions/bookings";
-import { Alert, Ban, Calendar, Chat, Check, MenuDots, Phone, Swap, Wallet } from "@/components/broker/booking-icons";
+import { Alert, Ban, Calendar, Chat, Check, MenuDots, Pencil, Phone, Swap, Wallet } from "@/components/broker/booking-icons";
 import { Banner, Dialog, Pill, SidePanel, Tile, bbtn, textareaClass } from "@/components/broker/booking-ui";
 import type { BookingsCtx } from "./useBookings";
 import { clashOf, datesText, nightsCount, payLabel, priceLines, unitLabel } from "./view";
 import type { Dlg } from "./BookingsApp";
 import { CancelDialog, MoveDialog, PayDialog, ReportDialog } from "./BookingDialogs";
+import { EditPanel } from "./BookingEdit";
 
 function logLine(t: BookingDict, kind: string, p: Record<string, string | number>, by: string, b: BookingView): string {
   const s = (k: string) => String(p[k] ?? "");
@@ -45,6 +46,26 @@ function logLine(t: BookingDict, kind: string, p: Record<string, string | number
       return t.log.noShow;
     case "card":
       return t.log.card;
+    case "editDates":
+      return t.v90.log.editDates(datesText(t, s("a"), s("b")), datesText(t, s("c"), s("d")));
+    case "editApt":
+      return t.v90.log.editApt(s("u"));
+    case "editGuests":
+      return t.v90.log.editGuests(t.guestsN(n("a"), n("c")));
+    case "editRate":
+      return t.v90.log.editRate(n("p") > 0 ? t.money(n("p"), b.currency) : t.v90.log.calendarPrice);
+    case "split":
+      return t.v90.log.split(t.day(s("d")), n("a"));
+    case "unsplit":
+      return t.v90.log.unsplit;
+    case "waCancel":
+      return t.v90.log.waCancel;
+    case "noShowWaived":
+      return t.v90.log.noShowWaived;
+    case "cardCancelled":
+      return t.v90.log.cardCancelled;
+    case "altAccepted":
+      return t.v90.log.altAccepted;
     default:
       return "";
   }
@@ -73,9 +94,10 @@ export function BookingDetail({
   const cancelled = b.status === "canc";
   const canPay = b.collect === "property" && !cancelled && b.payState !== "paid";
   const rule = { platform: b.platform, cancelled, stage: b.stage };
-  const move = canMove(rule, b.count);
+  const move = canMove(rule, b.count) && !b.split;
   const report = canReport(rule);
   const cancel = canCancel(rule);
+  const edit = canEdit(rule);
   const phone = g && !g.deleted ? g.phone : "";
   const { other, free } = over.has(b.id) ? clashOf(b, data.bookings) : { other: null, free: null };
   const { nightRows, lines } = priceLines(t, b);
@@ -129,6 +151,12 @@ export function BookingDetail({
         <button type="button" onClick={() => setDlg({ k: "report" })} className={bbtn.sSecondary}>
           <Alert size={15} />
           {t.reportBdc}
+        </button>
+      )}
+      {edit && (
+        <button type="button" onClick={() => setDlg({ k: "edit" })} className={bbtn.sSecondary}>
+          <Pencil />
+          {t.v90.editBooking}
         </button>
       )}
       {cancel && (
@@ -194,7 +222,12 @@ export function BookingDetail({
           <div role="alert" className="flex flex-col gap-2 rounded-[10px] border border-[#FCA5A5] bg-[#FEF2F2] px-3.5 py-3 text-[14px] leading-[1.6] text-[#7F1D1D] max-[899px]:text-[13px]">
             <span className="flex gap-2.5">
               <Alert size={18} />
-              <span>{t.overTxt(other.guestName, other.platformName, datesText(t, b.arrival > other.arrival ? b.arrival : other.arrival, b.departure < other.departure ? b.departure : other.departure))}</span>
+              <span>
+                {(() => {
+                  const x = datesText(t, b.arrival > other.arrival ? b.arrival : other.arrival, b.departure < other.departure ? b.departure : other.departure);
+                  return other.unitTypeId !== b.unitTypeId ? t.v90.overLinked(other.guestName, other.platformName, `\u2068${other.unitName}\u2069`, x) : t.overTxt(other.guestName, other.platformName, x);
+                })()}
+              </span>
             </span>
             <span className="font-semibold">{free ? t.overFixMove(free) : t.overFixContact(other.platformName)}</span>
             {free && move && (
@@ -217,8 +250,17 @@ export function BookingDetail({
         )}
         {b.cancel && (
           <div className="flex flex-col gap-1 rounded-[10px] bg-[#F3F4F6] px-3.5 py-3 text-[14px] leading-[1.6] text-[#374151]">
-            <span>{b.cancel.by === "guest" ? t.cancByGuest(b.platformName, t.day(b.cancel.at)) : t.cancByYou(t.day(b.cancel.at))}</span>
+            <span>
+              {b.cancel.by === "card" ? t.v90.cancByCard(t.day(b.cancel.at)) : b.cancel.by === "guest" ? t.cancByGuest(b.platformName, t.day(b.cancel.at)) : t.cancByYou(t.day(b.cancel.at))}
+            </span>
             {b.cancel.fee > 0 && <b>{t.feeTxt(t.money(b.cancel.fee, b.currency))}</b>}
+          </div>
+        )}
+
+        {b.split && (
+          <div className="flex gap-2.5 rounded-[10px] border border-[#DDD6FE] bg-[#F5F3FF] px-3.5 py-3 text-[14px] leading-[1.6] text-[#4C1D95] max-[899px]:px-3 max-[899px]:text-[13px]">
+            <Swap size={18} />
+            <span>{t.v90.splitTxt(t.day(b.split.at), b.split.apt)}</span>
           </div>
         )}
 
@@ -364,6 +406,7 @@ export function BookingDetail({
       {dlg?.k === "move" && <MoveDialog ctx={ctx} b={b} onClose={() => setDlg(null)} />}
       {dlg?.k === "cancel" && <CancelDialog ctx={ctx} b={b} onClose={() => setDlg(null)} />}
       {dlg?.k === "report" && <ReportDialog ctx={ctx} b={b} onClose={() => setDlg(null)} />}
+      {dlg?.k === "edit" && edit && <EditPanel ctx={ctx} b={b} onClose={() => setDlg(null)} />}
     </>
   );
 }

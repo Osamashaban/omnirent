@@ -7,13 +7,32 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { BookingView, RequestView } from "@/lib/booking-data";
-import { DECLINE_REASONS, METHODS, SOURCES, canReportNoShow, dueOf, phoneKey, round2, type DeclineReason, type DirectError, type Method, type Source } from "@/lib/booking-rules";
+import {
+  DECLINE_REASONS,
+  METHODS,
+  REPORTS,
+  SOURCES,
+  STAY_CHANGE,
+  defaultReport,
+  dueOf,
+  phoneKey,
+  reportError,
+  round2,
+  waMessageLink,
+  type DeclineReason,
+  type DirectError,
+  type Method,
+  type Report,
+  type ReportError,
+  type Source,
+} from "@/lib/booking-rules";
 import type { BookingDict } from "@/lib/booking-i18n";
 import { addDirectBooking, addPayment, answerBookingRequest, cancelDirectBooking, moveToApartment, quoteNights, reportBooking } from "@/app/actions/bookings";
 import { Ban } from "@/components/broker/booking-icons";
 import { Dialog, Field, SidePanel, bbtn, fieldBase, fieldBorder, textareaClass } from "@/components/broker/booking-ui";
 import type { BookingsCtx } from "./useBookings";
 import { datesText, overlapsB } from "./view";
+import { CheckBox } from "./BookingEdit";
 
 const num = (v: string) => (v.trim() === "" ? NaN : Number(v));
 
@@ -47,14 +66,29 @@ function directError(t: BookingDict, e: DirectError): string {
 // ---------------------------------------------------------------------------
 // New direct booking
 
-export function NewBookingPanel({ ctx, guestId, onClose, onSaved }: { ctx: BookingsCtx; guestId?: string; onClose: () => void; onSaved: (id: string) => void }) {
+// Dates and apartment type chosen on the Calendar's free nights (design v88).
+export type NewPreset = { propertyId: string; unitTypeId: string; ci: string; co: string };
+
+export function NewBookingPanel({
+  ctx,
+  guestId,
+  preset: from,
+  onClose,
+  onSaved,
+}: {
+  ctx: BookingsCtx;
+  guestId?: string;
+  preset?: NewPreset;
+  onClose: () => void;
+  onSaved: (id: string) => void;
+}) {
   const { t, data, busy } = ctx;
   const preset = guestId ? data.guests.find((g) => g.id === guestId && !g.deleted) : undefined;
   const [f, setF] = useState({
-    p: data.properties.length === 1 ? data.properties[0].id : "",
-    u: "",
-    ci: "",
-    co: "",
+    p: from?.propertyId ?? (data.properties.length === 1 ? data.properties[0].id : ""),
+    u: from?.unitTypeId ?? "",
+    ci: from?.ci ?? "",
+    co: from?.co ?? "",
     adults: "2",
     children: "0",
     mode: (preset ? "old" : data.guests.some((g) => !g.deleted) ? "old" : "new") as "old" | "new",
@@ -168,6 +202,7 @@ export function NewBookingPanel({ ctx, guestId, onClose, onSaved }: { ctx: Booki
       closeLabel={t.close}
       backLabel={t.back}
       z={50}
+      phoneForm
       head={
         <div className="flex flex-1 flex-col gap-1">
           <h2 className="m-0 text-[21px] font-bold">{t.newTitle}</h2>
@@ -550,18 +585,27 @@ export function MoveDialog({ ctx, b, onClose }: { ctx: BookingsCtx; b: BookingVi
 // Cancel a direct booking
 
 export function CancelDialog({ ctx, b, onClose }: { ctx: BookingsCtx; b: BookingView; onClose: () => void }) {
-  const { t } = ctx;
+  const { t, data } = ctx;
   const paid = b.paid;
+  const g = b.guestId ? data.guests.find((x) => x.id === b.guestId && !x.deleted) : undefined;
+  const phone = g?.phone ?? "";
   const [ref, setRef] = useState(paid ? String(paid) : "0");
   const [m, setM] = useState<Method>("cash");
+  // Design v88: on by default when the guest has a mobile number. WhatsApp
+  // opens with the message ready; the broker presses send there.
+  const [wa, setWa] = useState(Boolean(phone));
   const [err, setErr] = useState("");
   const go = async () => {
     const r0 = paid ? num(ref) : 0;
     if (!(r0 >= 0) || r0 > paid) return setErr(t.err.ref(t.money(paid, b.currency)));
-    const r = await ctx.run(() => cancelDirectBooking(b.id, r0, m));
+    // Opened now, while the tap still counts, so the browser doesn't block it.
+    const win = wa && phone ? window.open("", "_blank") : null;
+    const r = await ctx.run(() => cancelDirectBooking(b.id, r0, m, Boolean(win)));
+    if (!r || !r.ok) win?.close();
     if (!r) return;
     if (r.ok) {
-      ctx.say(t.toast.cancelled);
+      if (win) win.location.href = waMessageLink(phone, t.v90.waMsg(b.guestName, b.code, datesText(t, b.arrival, b.departure), b.propertyName));
+      ctx.say(win ? t.v90.toast.cancelledWa : t.toast.cancelled);
       onClose();
     } else setErr(r.error === "refund" ? t.err.ref(t.money(paid, b.currency)) : t.err.gone);
   };
@@ -607,25 +651,59 @@ export function CancelDialog({ ctx, b, onClose }: { ctx: BookingsCtx; b: Booking
           {err}
         </span>
       )}
+      {phone && (
+        <CheckBox checked={wa} onChange={setWa}>
+          {t.v90.waToggle}
+        </CheckBox>
+      )}
     </Dialog>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Report a no-show or an invalid card to Booking.com
+// Report to Booking.com (design v90): no-show (fee or no fee), invalid card,
+// cancel after the card wasn't updated. "The stay dates changed" waits for
+// the connection partner (STAY_CHANGE).
+
+export function reportErrorText(t: BookingDict, e: ReportError | string): string {
+  const v = t.v90.err;
+  switch (e) {
+    case "noshowEarly":
+      return t.err.noshowEarly;
+    case "noshowLate":
+      return v.noshowLate;
+    case "cardLate":
+      return v.cardLate;
+    case "cardAgain":
+      return v.cardAgain;
+    case "cardFirst":
+      return v.cardFirst;
+    case "cardWait":
+      return v.cardWait;
+    case "datesStay":
+      return v.datesStay;
+    case "platform":
+      return t.err.platform;
+    default:
+      return t.err.gone;
+  }
+}
 
 export function ReportDialog({ ctx, b, onClose }: { ctx: BookingsCtx; b: BookingView; onClose: () => void }) {
   const { t, data } = ctx;
-  const [what, setWhat] = useState<"noshow" | "card">(canReportNoShow(b, data.today) ? "noshow" : "card");
+  const v = t.v90;
+  const [what, setWhat] = useState<Report>(defaultReport(b));
   const [err, setErr] = useState("");
+  const options = REPORTS.filter((x) => x !== "dates" || STAY_CHANGE);
   const go = async () => {
-    if (what === "noshow" && !canReportNoShow(b, data.today)) return setErr(t.err.noshowEarly);
+    const e = reportError(what, b, data.today);
+    if (e) return setErr(reportErrorText(t, e));
     const r = await ctx.run(() => reportBooking(b.id, what));
     if (!r) return;
     if (r.ok) {
-      ctx.say(what === "noshow" ? t.toast.noShow : t.toast.card);
+      ctx.say(what === "noshow" ? t.toast.noShow : what === "noshoww" ? v.toast.noShowWaived : what === "card" ? t.toast.card : v.toast.cardCancelled);
       onClose();
-    } else setErr(r.error === "noshowEarly" ? t.err.noshowEarly : r.error === "platform" ? t.err.platform : t.err.gone);
+    } else setErr(reportErrorText(t, r.error));
   };
   return (
     <Dialog
@@ -648,13 +726,16 @@ export function ReportDialog({ ctx, b, onClose }: { ctx: BookingsCtx; b: Booking
           id="nw"
           value={what}
           onChange={(e) => {
-            setWhat(e.target.value as "noshow" | "card");
+            setWhat(e.target.value as Report);
             setErr("");
           }}
           className={`${fieldBase} ${fieldBorder(false)}`}
         >
-          <option value="noshow">{t.whatNoshow}</option>
-          <option value="card">{t.whatCard}</option>
+          {options.map((x) => (
+            <option key={x} value={x}>
+              {v.reports[x]}
+            </option>
+          ))}
         </select>
       </Field>
       {err && (
@@ -662,7 +743,50 @@ export function ReportDialog({ ctx, b, onClose }: { ctx: BookingsCtx; b: Booking
           {err}
         </span>
       )}
-      <span className="text-[13px] leading-[1.6] text-[#6B7280]">{t.noshowHint}</span>
+      <span className="text-[13px] leading-[1.6] text-[#6B7280]">{v.reportHints[what]}</span>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Special offer on an Airbnb inquiry (price for the whole stay)
+
+export function OfferDialog({ ctx, r, onClose, onDone }: { ctx: BookingsCtx; r: RequestView; onClose: () => void; onDone: () => void }) {
+  const { t } = ctx;
+  const v = t.v90;
+  const [amt, setAmt] = useState(r.total ? String(Math.round(r.total)) : "");
+  const [err, setErr] = useState("");
+  const go = async () => {
+    const a = num(amt);
+    if (!(a >= 1)) return setErr(v.err.offer);
+    const res = await ctx.run(() => answerBookingRequest(r.id, "offer", a));
+    if (!res) return;
+    if (res.ok) {
+      ctx.say(v.toast.offer);
+      onDone();
+    } else setErr(res.error === "platform" ? t.err.platform : t.err.gone);
+  };
+  const cur = r.currency === "EGP" && ctx.lang === "en" ? "EGP" : r.currency;
+  return (
+    <Dialog
+      title={v.offerTitle}
+      onClose={onClose}
+      closeLabel={t.close}
+      footer={
+        <>
+          <button type="button" disabled={ctx.busy} onClick={go} className={`${bbtn.primary} flex-1`}>
+            {v.sendOffer}
+          </button>
+          <button type="button" onClick={onClose} className={bbtn.secondary}>
+            {t.cancel}
+          </button>
+        </>
+      }
+    >
+      <p className="m-0 text-[14px] leading-[1.7] text-[#374151]">{v.offerIntro}</p>
+      <Field id="oamt" label={v.offerPrice(cur)} error={err}>
+        <input id="oamt" type="number" inputMode="decimal" dir="ltr" min={1} value={amt} onChange={(e) => setAmt(e.target.value)} className={`${fieldBase} ${fieldBorder(Boolean(err))} text-start`} />
+      </Field>
     </Dialog>
   );
 }

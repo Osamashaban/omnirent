@@ -11,13 +11,15 @@ import { getCurrentBroker, type CurrentBroker } from "@/lib/broker-auth";
 import { isFlag, isRowId } from "@/lib/action-args";
 import { getLang } from "@/lib/lang";
 import { BOOKING_DICTS } from "@/lib/booking-i18n";
-import { DECLINE_REASONS, DOC_TYPES, METHODS, SOURCES, isIso, type DeclineReason, type DirectError, type DocType, type Method, type Source } from "@/lib/booking-rules";
+import { DECLINE_REASONS, DOC_TYPES, METHODS, REPORTS, SOURCES, isIso, type DeclineReason, type DirectError, type DocType, type EditError, type Method, type Source } from "@/lib/booking-rules";
 import {
   answerRequest as answer,
   cancelDirect,
   confirmBooking,
   createDirect,
   deleteGuestData,
+  changeDirectDates,
+  editDirect,
   loadBookings,
   mergeGuests,
   moveBooking,
@@ -35,7 +37,7 @@ import { pullFeed } from "@/lib/channel-data";
 import { nightPrices } from "@/lib/calendar-data";
 import { prisma } from "@/lib/db";
 
-type Fail = { ok: false; error: "signedOut" | "failed" | ActionError | "reason" | "number" | "upcoming"; due?: number };
+type Fail = { ok: false; error: "signedOut" | "failed" | ActionError | "reason" | "number" | "upcoming"; due?: number; guest?: string };
 const signedOut: Fail = { ok: false, error: "signedOut" };
 const failed: Fail = { ok: false, error: "failed" };
 type Done = { ok: true; data: BookingsData };
@@ -157,12 +159,12 @@ export async function moveToApartment(id: unknown, apt: unknown): Promise<Done |
   return { ok: true, data: await fresh(current) };
 }
 
-export async function cancelDirectBooking(id: unknown, refund: unknown, method: unknown): Promise<Done | Fail> {
+export async function cancelDirectBooking(id: unknown, refund: unknown, method: unknown, wa?: unknown): Promise<Done | Fail> {
   const current = await getCurrentBroker();
   if (!current) return signedOut;
   const r0 = money(refund);
-  if (!isRowId(id) || r0 === null || !oneOf(METHODS, method)) return failed;
-  const r = await cancelDirect(current.broker.id, current.user.name, id, r0, method);
+  if (!isRowId(id) || r0 === null || !oneOf(METHODS, method) || (wa !== undefined && !isFlag(wa))) return failed;
+  const r = await cancelDirect(current.broker.id, current.user.name, id, r0, method, wa === true);
   if (!r.ok) return { ok: false, error: r.error ?? "failed" };
   return { ok: true, data: await fresh(current) };
 }
@@ -170,10 +172,62 @@ export async function cancelDirectBooking(id: unknown, refund: unknown, method: 
 export async function reportBooking(id: unknown, what: unknown): Promise<Done | Fail> {
   const current = await getCurrentBroker();
   if (!current) return signedOut;
-  if (!isRowId(id) || !oneOf(["noshow", "card"] as const, what)) return failed;
+  if (!isRowId(id) || !oneOf(REPORTS, what)) return failed;
   const r = await reportToBdc(current.broker.id, current.user.name, id, what);
   if (!r.ok) return { ok: false, error: r.error ?? "failed" };
   return { ok: true, data: await fresh(current) };
+}
+
+// Edit a direct booking (design v88). Field errors come back as `errors`.
+export async function editBooking(id: unknown, input: Record<string, unknown>): Promise<Done | { ok: false; errors: EditError[] } | Fail> {
+  const current = await getCurrentBroker();
+  if (!current) return signedOut;
+  const f = input ?? {};
+  const adults = count(f.adults, 50);
+  const children = count(f.children, 50);
+  const apt = count(f.apt, 1000);
+  const rate = f.rate === undefined || f.rate === null ? null : money(f.rate);
+  const sp = f.split as { at?: unknown; apt?: unknown } | null | undefined;
+  const splitApt = sp ? count(sp.apt, 1000) : null;
+  if (
+    !isRowId(id) ||
+    !isRowId(f.unitTypeId) ||
+    typeof f.arrival !== "string" ||
+    typeof f.departure !== "string" ||
+    (f.arrival !== "" && !isIso(f.arrival)) ||
+    (f.departure !== "" && !isIso(f.departure)) ||
+    adults === null ||
+    children === null ||
+    apt === null ||
+    (f.rate !== undefined && f.rate !== null && rate === null) ||
+    (sp !== undefined && sp !== null && (typeof sp !== "object" || typeof sp.at !== "string" || (sp.at !== "" && !isIso(sp.at)) || splitApt === null))
+  ) {
+    return failed;
+  }
+  const r = await editDirect(current.broker.id, current.user.name, id, {
+    unitTypeId: f.unitTypeId,
+    apt,
+    arrival: f.arrival,
+    departure: f.departure,
+    adults,
+    children,
+    rate,
+    split: sp ? { at: sp.at as string, apt: splitApt! } : null,
+  });
+  if (!r.ok) return "errors" in r ? r : { ok: false, error: r.error };
+  return { ok: true, data: await fresh(current) };
+}
+
+// The Calendar's "Change dates" and drag along the row (direct bookings).
+export async function changeBookingDates(id: unknown, arrival: unknown, departure: unknown): Promise<{ ok: true } | { ok: false; errors: EditError[] } | Fail> {
+  const current = await getCurrentBroker();
+  if (!current) return signedOut;
+  if (!isRowId(id) || !isIso(arrival) || !isIso(departure)) return failed;
+  const r = await changeDirectDates(current.broker.id, current.user.name, id, arrival, departure);
+  if (!r.ok) return "errors" in r ? r : { ok: false, error: r.error };
+  revalidatePath("/broker/bookings");
+  revalidatePath("/broker/calendar");
+  return { ok: true };
 }
 
 export async function saveTeamNote(id: unknown, note: unknown): Promise<Done | Fail> {
@@ -188,14 +242,23 @@ export async function saveTeamNote(id: unknown, note: unknown): Promise<Done | F
 // ---------------------------------------------------------------------------
 // Airbnb requests to book and inquiries
 
-export async function answerBookingRequest(id: unknown, kind: unknown, reason?: unknown): Promise<Done | Fail> {
+// kind: accept, preapprove, decline (with a reason), offer (with the price for
+// the whole stay), declineChange (a change request).
+export async function answerBookingRequest(id: unknown, kind: unknown, extra?: unknown): Promise<Done | Fail> {
   const current = await getCurrentBroker();
   if (!current) return signedOut;
-  if (!isRowId(id) || !oneOf(["accept", "preapprove", "decline"] as const, kind)) return failed;
-  if (kind === "decline" && !oneOf(DECLINE_REASONS, reason)) return failed;
-  const a = kind === "decline" ? { kind, reason: reason as DeclineReason } : { kind };
+  if (!isRowId(id) || !oneOf(["accept", "preapprove", "decline", "offer", "declineChange"] as const, kind)) return failed;
+  if (kind === "decline" && !oneOf(DECLINE_REASONS, extra)) return failed;
+  const total = kind === "offer" ? money(extra) : 0;
+  if (kind === "offer" && !(total !== null && total >= 1)) return failed;
+  const a =
+    kind === "decline"
+      ? { kind, reason: extra as DeclineReason }
+      : kind === "offer"
+        ? { kind, total: total! }
+        : { kind };
   const r = await answer(current.broker.id, current.user.name, id, a);
-  if (!r.ok) return { ok: false, error: r.error ?? "failed" };
+  if (!r.ok) return { ok: false, error: r.error ?? "failed", guest: r.guest };
   return { ok: true, data: await fresh(current) };
 }
 

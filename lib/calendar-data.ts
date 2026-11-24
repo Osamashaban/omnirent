@@ -8,7 +8,7 @@ import { OPS_TIME_ZONE } from "./dates";
 import { channexConfigured } from "./channex";
 import { bookedNights } from "./channel-rules";
 import { initials, platformById } from "./channel-catalog";
-import { DIRECT, canMove, stageOf } from "./booking-rules";
+import { DIRECT, canEdit, canMove, stageOf } from "./booking-rules";
 import { BOOKING_DICTS } from "./booking-i18n";
 import type { Lang } from "./i18n";
 import {
@@ -62,6 +62,13 @@ export type CalBooking = {
   rooms: number;
   // Only stays that haven't started can change apartment (Bookings rule).
   movable: boolean;
+  // Design v88: direct bookings change dates here (drag or "Change dates");
+  // a split stay moves to apartment splitApt from splitAt.
+  editable: boolean;
+  propertyId: string;
+  rate: number | null;
+  splitAt: string | null;
+  splitApt: number | null;
 };
 
 export type CalendarData = {
@@ -73,6 +80,9 @@ export type CalendarData = {
   // keyed like overrides ("unitTypeId|date"), from today on.
   booked: Record<string, number>;
   bookings: CalBooking[];
+  // Team notes on days (design v88), keyed like overrides. Never sent to
+  // the platforms.
+  notes: Record<string, string>;
   // The platform filter: the broker's connected platforms, plus any other
   // platform (or Direct) that has a booking here.
   platforms: { id: string; name: string }[];
@@ -183,6 +193,12 @@ export async function loadCalendar(brokerId: string, lang: Lang): Promise<Calend
       })
     : [];
   const countOf = new Map(types.map((t) => [t.id, t.count]));
+  const propOf = new Map(types.map((t) => [t.id, t.propertyId]));
+  const noteRows = types.length
+    ? await prisma.calendarNote.findMany({ where: { unitTypeId: { in: types.map((t) => t.id) }, date: { gte: new Date(monthStart) } }, select: { unitTypeId: true, date: true, text: true } })
+    : [];
+  const notes: Record<string, string> = {};
+  for (const r of noteRows) notes[overrideKey(r.unitTypeId, r.date.toISOString().slice(0, 10))] = r.text;
   const bt = BOOKING_DICTS[lang];
   const directName = bt.direct;
   const bookings: CalBooking[] = rows.map((r) => {
@@ -207,7 +223,12 @@ export async function loadCalendar(brokerId: string, lang: Lang): Promise<Calend
       total: Number(r.total),
       currency: r.currency,
       rooms: r.rooms,
-      movable: canMove({ cancelled: false, stage: stageOf({ arrival, departure, cancelled: false }, today) }, count),
+      movable: canMove({ cancelled: false, stage: stageOf({ arrival, departure, cancelled: false }, today) }, count) && !r.splitAt,
+      editable: canEdit({ platform: r.platform, cancelled: false, stage: stageOf({ arrival, departure, cancelled: false }, today) }),
+      propertyId: propOf.get(r.unitTypeId!) ?? "",
+      rate: r.rate === null ? null : Number(r.rate),
+      splitAt: r.splitAt ? r.splitAt.toISOString().slice(0, 10) : null,
+      splitApt: r.splitApt ? Math.min(Math.max(1, r.splitApt), count) : null,
     };
   });
   const [accounts, connections] = await Promise.all([
@@ -238,9 +259,22 @@ export async function loadCalendar(brokerId: string, lang: Lang): Promise<Calend
     overrides,
     booked,
     bookings,
+    notes,
     platforms,
     failed,
   };
+}
+
+// How many units of each type are booked on a night (for bulk and quick edit,
+// which skip fully booked nights).
+export async function bookedLookup(typeIds: string[], from: string, to: string): Promise<(typeId: string, date: string) => number> {
+  if (!typeIds.length) return () => 0;
+  const rows = await prisma.channelBooking.findMany({
+    where: { unitTypeId: { in: typeIds }, status: { not: "cancelled" }, arrival: { lte: new Date(to) }, departure: { gt: new Date(from) } },
+    select: { unitTypeId: true, arrival: true, departure: true, rooms: true },
+  });
+  const map = bookedNights(rows.map((r) => ({ unitTypeId: r.unitTypeId, arrival: r.arrival.toISOString().slice(0, 10), departure: r.departure.toISOString().slice(0, 10), status: "new", rooms: r.rooms })));
+  return (typeId, date) => map.get(overrideKey(typeId, date)) ?? 0;
 }
 
 // The broker's unit types with the given ids (others are ignored).
@@ -503,4 +537,20 @@ export async function nightPrices(unitTypeId: string, from: string, to: string):
   const days = await prisma.calendarDay.findMany({ where: { unitTypeId, date: { gte: new Date(from), lte: new Date(last) } } });
   const stored = new Map(days.map((d) => [d.date.toISOString().slice(0, 10), rowToOverride(d)]));
   return dateRange(from, last).map((d) => ({ d, p: nightOf(type, d, stored.get(d)).price }));
+}
+
+// Team notes on days (design v88): one text per unit type and night, set on
+// every chosen night (empty text removes them). Only the broker's own unit
+// types are touched.
+export async function saveNotes(brokerId: string, typeIds: string[], dates: string[], text: string): Promise<number> {
+  const own = await prisma.unitType.findMany({ where: { id: { in: typeIds }, property: { brokerId } }, select: { id: true } });
+  const ids = own.map((u) => u.id);
+  if (!ids.length || !dates.length) return 0;
+  const days = dates.map((d) => new Date(d));
+  const clean = text.trim().slice(0, 500);
+  await prisma.$transaction([
+    prisma.calendarNote.deleteMany({ where: { unitTypeId: { in: ids }, date: { in: days } } }),
+    ...(clean ? [prisma.calendarNote.createMany({ data: ids.flatMap((unitTypeId) => days.map((date) => ({ unitTypeId, date, text: clean }))) })] : []),
+  ]);
+  return ids.length * dates.length;
 }

@@ -47,6 +47,7 @@ export const PILL = {
   dup: "bg-[#F3E8FF] text-[#6B21A8]",
   req: "bg-[#FFE4E6] text-[#BE123C]",
   inq: "bg-[#F3F4F6] text-[#374151]",
+  alt: "bg-[#DBEAFE] text-[#1D4ED8]",
   soon: "bg-[#FEE2E2] text-[#B91C1C]",
   later: "bg-[#FEF3C7] text-[#92400E]",
   request: "bg-[#FEF3C7] text-[#92400E]",
@@ -139,6 +140,7 @@ export function SidePanel({
   backLabel,
   footer,
   phoneFooter,
+  phoneForm = false,
   z = 40,
   children,
 }: {
@@ -151,25 +153,32 @@ export function SidePanel({
   backLabel: string;
   footer?: React.ReactNode;
   phoneFooter?: React.ReactNode;
+  // Forms on phones (new and edit booking) close with an X on white, as in
+  // the design; details go back with an arrow on grey.
+  phoneForm?: boolean;
   z?: number;
   children: React.ReactNode;
 }) {
   useEscape(onClose);
   return (
-    <div className="fixed inset-0 flex justify-end bg-[rgba(17,24,39,0.30)] max-[899px]:bg-[#F9FAFB]" style={{ zIndex: z }} onClick={onClose}>
+    <div className={`fixed inset-0 flex justify-end bg-[rgba(17,24,39,0.30)] ${phoneForm ? "max-[899px]:bg-white" : "max-[899px]:bg-[#F9FAFB]"}`} style={{ zIndex: z }} onClick={onClose}>
       <section
         role="dialog"
         aria-modal="true"
         aria-label={label}
         onClick={(e) => e.stopPropagation()}
         style={{ ["--w" as string]: `${width}px` }}
-        className="flex h-full w-full flex-col bg-white shadow-[0_20px_50px_rgba(0,0,0,0.25)] max-[899px]:bg-[#F9FAFB] max-[899px]:shadow-none min-[900px]:w-[var(--w)] min-[900px]:max-w-full"
+        className={`flex h-full w-full flex-col bg-white shadow-[0_20px_50px_rgba(0,0,0,0.25)] ${phoneForm ? "" : "max-[899px]:bg-[#F9FAFB]"} max-[899px]:shadow-none min-[900px]:w-[var(--w)] min-[900px]:max-w-full`}
       >
         <header className="flex h-14 flex-none items-center gap-2 border-b border-[#E5E7EB] bg-white px-2 min-[900px]:hidden">
-          <button type="button" onClick={onClose} aria-label={backLabel} className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-[#111827]">
+          <button type="button" onClick={onClose} aria-label={phoneForm ? closeLabel : backLabel} className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-[#111827]">
+            {phoneForm ? (
+              <Close size={22} />
+            ) : (
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="ltr:-scale-x-100">
               <path d="m9 18 6-6-6-6" />
             </svg>
+            )}
           </button>
           <span className="min-w-0 flex-1 truncate text-[17px] font-bold">{phoneTitle}</span>
         </header>

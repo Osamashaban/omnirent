@@ -15,7 +15,16 @@ import {
   canMove,
   canReport,
   canReportNoShow,
+  canEdit,
   checkDirect,
+  checkEdit,
+  clashes,
+  defaultReport,
+  editChanges,
+  editRanges,
+  reportError,
+  segmentsOf,
+  waMessageLink,
   checkPayment,
   checkRefund,
   clashWith,
@@ -375,4 +384,144 @@ test("English counts use the singular for one", () => {
   assert.equal(en.bookingsN(3), "3 bookings");
   assert.equal(en.guestsCount(1), "1 guest");
   assert.equal(en.guestsCount(2), "2 guests");
+});
+
+// ---------------------------------------------------------------------------
+// Design v90: linked and split stays, Booking.com reports, editing a direct
+// booking, the WhatsApp cancellation and Airbnb change requests.
+// ---------------------------------------------------------------------------
+
+const v90slot = (id, over = {}) => ({ id, unitTypeId: "u1", apt: 1, arrival: "2026-12-01", departure: "2026-12-04", cancelled: false, ...over });
+
+test("v90 clashes: the whole apartment and its own rooms can't share a night", () => {
+  const whole = v90slot("w", { unitTypeId: "whole", propertyId: "p1", link: "whole" });
+  const room = v90slot("r", { unitTypeId: "room", propertyId: "p1", link: "room", arrival: "2026-12-03", departure: "2026-12-05" });
+  assert.equal(clashes(whole, room), true);
+  // Back to back is fine, and another property never clashes.
+  assert.equal(clashes(whole, { ...room, arrival: "2026-12-04" }), false);
+  assert.equal(clashes(whole, { ...room, propertyId: "p2" }), false);
+  // Two rooms of the same property don't block each other.
+  assert.equal(clashes({ ...whole, link: "room" }, room), false);
+  assert.equal(doubleBooked([whole, room], TODAY).size, 2);
+});
+
+test("v90 clashes: a split stay is in each apartment only for its own part", () => {
+  const split = v90slot("s", { apt: 1, splitAt: "2026-12-03", splitApt: 2 });
+  assert.deepEqual(
+    segmentsOf(split).map((x) => [x.apt, x.arrival, x.departure]),
+    [
+      [1, "2026-12-01", "2026-12-03"],
+      [2, "2026-12-03", "2026-12-04"],
+    ],
+  );
+  // Apartment 1 is free from the move day, apartment 2 is busy from it.
+  assert.equal(clashes(split, v90slot("a", { apt: 1, arrival: "2026-12-03", departure: "2026-12-06" })), false);
+  assert.equal(clashes(split, v90slot("b", { apt: 2, arrival: "2026-12-01", departure: "2026-12-03" })), false);
+  assert.equal(clashes(split, v90slot("c", { apt: 2, arrival: "2026-12-02", departure: "2026-12-04" })), true);
+  const st = aptStatus([split], "u1", 2, { arrival: "2026-12-03", departure: "2026-12-04" });
+  assert.equal(st[0].busy, undefined);
+  assert.equal(st[1].busy?.id, "s");
+  // A move day outside the stay is ignored.
+  assert.equal(segmentsOf(v90slot("x", { splitAt: "2026-12-04", splitApt: 2 })).length, 1);
+});
+
+test("v90 Booking.com reports: no-show window, the card once, cancel 24 hours later, stay change switched off", () => {
+  const b = { arrival: "2026-11-22", stage: "arr", cardReportedAt: null };
+  assert.equal(reportError("noshow", b, "2026-11-21"), "noshowEarly");
+  assert.equal(reportError("noshow", b, "2026-11-22"), null);
+  assert.equal(reportError("noshoww", b, "2026-11-24"), null);
+  assert.equal(reportError("noshow", b, "2026-11-25"), "noshowLate");
+  assert.equal(reportError("card", b, "2026-11-22"), null);
+  assert.equal(reportError("card", b, "2026-11-23"), "cardLate");
+  assert.equal(reportError("card", { ...b, cardReportedAt: "2026-11-20T10:00:00Z" }, "2026-11-21"), "cardAgain");
+  assert.equal(reportError("cardc", b, "2026-11-21"), "cardFirst");
+  const reported = { ...b, cardReportedAt: "2026-11-21T10:00:00Z" };
+  assert.equal(reportError("cardc", reported, "2026-11-22", new Date("2026-11-22T09:00:00Z")), "cardWait");
+  assert.equal(reportError("cardc", reported, "2026-11-22", new Date("2026-11-22T10:30:00Z")), null);
+  assert.equal(reportError("dates", { ...b, stage: "stay" }, "2026-11-23"), "notAllowed");
+  assert.equal(defaultReport({ stage: "up", cardReportedAt: null }), "card");
+  assert.equal(defaultReport({ stage: "up", cardReportedAt: "2026-11-21T10:00:00Z" }), "cardc");
+  assert.equal(defaultReport({ stage: "arr", cardReportedAt: null }), "noshow");
+});
+
+const v90unit = { id: "u1", count: 3, maxGuests: 4, propertyId: "p1", link: null };
+const v90orig = { unitTypeId: "u1", apt: 1, arrival: "2026-12-01", departure: "2026-12-05", adults: 2, children: 0, rate: null, split: null };
+const v90others = [{ ...v90slot("o1", { apt: 2, arrival: "2026-12-06", departure: "2026-12-09" }), guest: "Mona" }];
+const edit = (patch, bookings = v90others) => checkEdit({ ...v90orig, ...patch }, { id: "me", today: TODAY, orig: v90orig, unit: v90unit, bookings });
+const codes = (e) => e.map((x) => x.code);
+
+test("v90 edit: only direct bookings that haven't ended", () => {
+  assert.equal(canEdit({ platform: "direct", cancelled: false, stage: "up" }), true);
+  assert.equal(canEdit({ platform: "direct", cancelled: false, stage: "stay" }), true);
+  assert.equal(canEdit({ platform: "direct", cancelled: false, stage: "past" }), false);
+  assert.equal(canEdit({ platform: "direct", cancelled: true, stage: "up" }), false);
+  assert.equal(canEdit({ platform: "abnb", cancelled: false, stage: "up" }), false);
+});
+
+test("v90 edit: dates, guests, price and nothing changed", () => {
+  assert.deepEqual(codes(edit({})), ["nothing"]);
+  assert.deepEqual(codes(edit({ departure: "2026-12-01" })), ["badDates"]);
+  assert.deepEqual(codes(edit({ arrival: "2026-11-20" })), ["pastMove"]);
+  assert.deepEqual(codes(edit({ adults: 0 })), ["noGuests"]);
+  assert.deepEqual(edit({ adults: 3, children: 2 }), [{ field: "eadults", code: "tooMany", max: 4 }]);
+  assert.deepEqual(codes(edit({ rate: 0 })), ["badRate"]);
+  assert.deepEqual(edit({ departure: "2026-12-06" }), []);
+});
+
+test("v90 edit: the new nights must be free, on this apartment and on a split's second one", () => {
+  assert.deepEqual(edit({ apt: 2, departure: "2026-12-07" }), [{ field: "edates", code: "taken", guest: "Mona", from: "2026-12-06", to: "2026-12-09" }]);
+  // Its own old nights never count as taken.
+  assert.deepEqual(edit({ arrival: "2026-12-02" }, [...v90others, { ...v90slot("me", v90orig), guest: "Me" }]), []);
+  assert.deepEqual(codes(edit({ split: { at: "2026-12-05", apt: 2 } })), ["splitDay"]);
+  assert.deepEqual(codes(edit({ split: { at: "2026-12-03", apt: 1 } })), ["splitApt"]);
+  assert.deepEqual(codes(edit({ split: { at: "2026-12-03", apt: 4 } })), ["splitApt"]);
+  assert.deepEqual(edit({ departure: "2026-12-07", split: { at: "2026-12-04", apt: 2 } }), [{ field: "esplit", code: "splitTaken", apt: 2, guest: "Mona" }]);
+  assert.deepEqual(edit({ split: { at: "2026-12-03", apt: 2 } }), []);
+});
+
+test("v90 edit: the log lists each change, and old and new nights are sent again", () => {
+  assert.deepEqual(editChanges({ ...v90orig, departure: "2026-12-06", apt: 2, adults: 3, rate: 900, split: { at: "2026-12-03", apt: 3 } }, v90orig), ["dates", "apt", "guests", "rate", "split"]);
+  assert.deepEqual(editChanges(v90orig, v90orig), []);
+  assert.deepEqual(editRanges(v90orig, v90orig), [{ from: "2026-12-01", to: "2026-12-05" }]);
+  assert.deepEqual(editRanges({ arrival: "2026-12-03", departure: "2026-12-07" }, v90orig), [{ from: "2026-12-01", to: "2026-12-07" }]);
+  assert.deepEqual(editRanges({ arrival: "2026-12-10", departure: "2026-12-12" }, v90orig), [
+    { from: "2026-12-01", to: "2026-12-05" },
+    { from: "2026-12-10", to: "2026-12-12" },
+  ]);
+});
+
+test("v90 WhatsApp cancellation opens the chat with the message ready", () => {
+  assert.equal(waMessageLink("+20 100 123 4567", "Your booking is cancelled & refunded"), `${waLink("+20 100 123 4567")}?text=Your%20booking%20is%20cancelled%20%26%20refunded`);
+});
+
+test("v90 Airbnb change requests are read from the live feed", () => {
+  const now = new Date("2026-11-22T10:00:00Z");
+  const alt = parseLiveRequest(
+    {
+      id: "lf9",
+      attributes: {
+        event: "alteration_request",
+        property_id: "P1",
+        inserted_at: "2026-11-22T08:00:00Z",
+        payload: { bms: { booking_id: "B77", arrival_date: "2026-12-02", departure_date: "2026-12-06", amount: "4200.5", currency: "egp", occupancy: { adults: 3, children: 1 } } },
+      },
+    },
+    now,
+  );
+  assert.equal(alt.kind, "alt");
+  assert.equal(alt.bookingId, "B77");
+  assert.deepEqual([alt.arrival, alt.departure, alt.adults, alt.children, alt.total, alt.currency], ["2026-12-02", "2026-12-06", 3, 1, 4200.5, "EGP"]);
+  assert.equal(alt.expiresAt.toISOString(), "2026-11-23T08:00:00.000Z");
+  // Without the booking it changes, or with broken dates, it is ignored.
+  assert.equal(parseLiveRequest({ id: "x", attributes: { event: "alteration_request", payload: { bms: { arrival_date: "2026-12-02", departure_date: "2026-12-06" } } } }, now), null);
+  assert.equal(parseLiveRequest({ id: "y", attributes: { event: "alteration_request", payload: { bms: { booking_id: "B", arrival_date: "2026-12-06", departure_date: "2026-12-02" } } } }, now), null);
+});
+
+test("v90 every new booking action checks the signed-in broker", () => {
+  const src = read("app/actions/bookings.ts");
+  for (const fn of ["editBooking", "changeBookingDates"]) {
+    const body = src.slice(src.indexOf(`export async function ${fn}`), src.indexOf("\n}\n", src.indexOf(`export async function ${fn}`)));
+    assert.match(body, /getCurrentBroker\(\)/, fn);
+    assert.match(body, /current\.broker\.id/, fn);
+  }
 });

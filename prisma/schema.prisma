@@ -540,6 +540,7 @@ model UnitType {
 
   rates        RatePlan[]
   calendar     CalendarDay[]
+  calendarNotes CalendarNote[]
   channelLinks ChannelLink[]
 
   createdAt DateTime @default(now())
@@ -639,6 +640,21 @@ model CalendarDay {
 
   updatedById String?
   updatedBy   BrokerUser? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([unitTypeId, date])
+}
+
+// A note on a night (design App_Calendar v88): an orange dot on the day, for
+// the broker's team only. Never sent to the platforms.
+model CalendarNote {
+  id         String   @id @default(cuid())
+  unitTypeId String
+  unitType   UnitType @relation(fields: [unitTypeId], references: [id], onDelete: Cascade)
+  date       DateTime @db.Date
+  text       String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -880,6 +896,15 @@ model ChannelBooking {
   cancelledBy   String?
   cancelFee     Decimal?  @db.Decimal(12, 2)
   bookedAt      DateTime  @default(now())
+  // Design v88: a direct booking's own price per night (empty = the
+  // calendar price), and a stay split across two identical apartments: from
+  // splitAt the guest is in apartment splitApt. Platforms see one booking.
+  rate          Decimal?  @db.Decimal(12, 2)
+  splitAt       DateTime? @db.Date
+  splitApt      Int?
+  // Design v89: when an invalid card was reported to Booking.com (the guest
+  // then has 24 hours to update it before the booking can be cancelled).
+  cardReportedAt DateTime?
 
   payments BookingPayment[]
   events   BookingEvent[]
@@ -968,7 +993,7 @@ model BookingRequest {
   brokerId   String
   broker     Broker    @relation(fields: [brokerId], references: [id], onDelete: Cascade)
   channexId  String    @unique
-  // "req" (request to book) or "inq" (inquiry).
+  // "req" (request to book), "inq" (inquiry) or "alt" (change request).
   kind       String
   platform   String    @default("abb")
   propertyId String?
@@ -984,7 +1009,9 @@ model BookingRequest {
   currency   String    @default("EGP")
   message    String    @default("")
   expiresAt  DateTime
-  // "open", "accepted", "preapproved", "declined" or "expired".
+  // Design v89: "alt" (a guest asks to change a booking) points at it.
+  bookingId  String?
+  // "open", "accepted", "preapproved", "offered", "declined" or "expired".
   status     String    @default("open")
   answeredBy String    @default("")
 
