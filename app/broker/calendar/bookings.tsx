@@ -360,7 +360,9 @@ export function DatesDialog({
   const [busy, setBusy] = useState(false);
   const money = (n: number) => formatMoney(n, b.currency, lang);
   const nights = ci && co && co > ci ? daysBetween(ci, co) : 0;
-  const after = nights ? (b.rate ? b.rate * nights : priceOf(ci, co)) : null;
+  // Same dates as now: nothing is repriced (the server keeps the booking's total).
+  const same = ci === b.arrival && co === b.departure;
+  const after = !nights ? null : same ? b.total : b.rate ? b.rate * nights : priceOf(ci, co);
   const diff = after === null ? 0 : Math.round(after - b.total);
 
   const text = (e: EditError) => {
